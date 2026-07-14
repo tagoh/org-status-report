@@ -83,7 +83,18 @@
 ;;    Note: C-c c is the standard org-mode capture binding.
 ;;    If your configuration uses a different binding, use that instead.
 ;;
-;; 2. Export status report:
+;; 2. Navigate to weeks (when in status.org):
+;;    C-c C-x w                        ; Jump to latest week
+;;    C-u C-c C-x w                    ; Prompt for date, jump to that week
+;;    C-u 28 C-c C-x w                 ; Jump to week 28
+;;    M-28 C-c C-x w                   ; Jump to week 28 (alternative)
+;;
+;;    You can also call directly:
+;;    M-x org-status-goto-week         ; Jump to latest week
+;;    (org-status-goto-week 28)        ; Jump to week 28 (from Lisp)
+;;    (org-status-goto-week "2026-07-14") ; Jump to week containing that date
+;;
+;; 3. Export status report:
 ;;    - Open ~/org/status.org
 ;;    - Put cursor on the heading you want to export
 ;;    - C-c C-e (open export menu)
@@ -320,6 +331,90 @@ then creates/navigates to the appropriate heading structure for that date."
          (org-status--capture-date (apply #'encode-time (org-parse-time-string date-string))))
     (org-status--goto-or-create)))
 
+;;; Navigation functions
+
+;;;###autoload
+(defun org-status-goto-week (&optional arg)
+  "Jump to a week entry in the status report.
+
+With no argument (or nil), jump to the latest week.
+With a date string argument (e.g., \"2026-07-14\"), jump to that date's week.
+With a numeric argument, jump to that week number in current year.
+
+Examples:
+  (org-status-goto-week)              ; Jump to latest week
+  (org-status-goto-week \"2026-07-14\") ; Jump to week containing that date
+  (org-status-goto-week 28)           ; Jump to week 28
+
+When called interactively:
+  C-c C-x w         -> Jump to latest week
+  C-u C-c C-x w     -> Prompt for date, jump to that week
+  C-u 28 C-c C-x w  -> Jump to week 28
+  M-28 C-c C-x w    -> Jump to week 28"
+  (interactive
+   (list (cond
+          ;; Numeric prefix argument: use as week number
+          ((and current-prefix-arg (numberp current-prefix-arg))
+           current-prefix-arg)
+          ;; Non-numeric prefix (C-u): prompt for date
+          (current-prefix-arg
+           (org-read-date nil nil nil "Jump to week containing date: "))
+          ;; No prefix: nil (latest week)
+          (t nil))))
+  (with-current-buffer (find-file-noselect org-status-file)
+    (cond
+     ;; No argument: jump to latest week
+     ((null arg)
+      (goto-char (point-max))
+      (if (re-search-backward
+           (concat "^"
+                   (regexp-quote (make-string org-status--week-level ?*))
+                   " Week [0-9]+")
+           nil t)
+          (progn
+            (org-show-context 'tree)
+            (org-show-subtree)
+            (switch-to-buffer (current-buffer))
+            (message "Jumped to latest week"))
+        (message "No week entries found")))
+
+     ;; String argument: treat as date
+     ((stringp arg)
+      (let* ((time (apply #'encode-time (org-parse-time-string arg)))
+             (path (let ((org-status--capture-date time))
+                     (org-status--week-structure)))
+             (week-heading (nth 1 path)))  ; "Week N (start to end)"
+        (goto-char (point-min))
+        (if (re-search-forward
+             (org-status--make-heading-regexp week-heading org-status--week-level)
+             nil t)
+            (progn
+              (beginning-of-line)
+              (org-show-context 'tree)
+              (org-show-subtree)
+              (switch-to-buffer (current-buffer))
+              (message "Jumped to %s" week-heading))
+          (message "Week for date %s not found" arg))))
+
+     ;; Numeric argument: treat as week number
+     ((numberp arg)
+      (goto-char (point-min))
+      (if (re-search-forward
+           (concat "^"
+                   (regexp-quote (make-string org-status--week-level ?*))
+                   " Week " (number-to-string arg) " ")
+           nil t)
+          (progn
+            (beginning-of-line)
+            (org-show-context 'tree)
+            (org-show-subtree)
+            (switch-to-buffer (current-buffer))
+            (message "Jumped to Week %d" arg))
+        (message "Week %d not found" arg)))
+
+     (t
+      (message "Invalid argument type: %S" arg)))))
+
 ;;; Task extraction and formatting
 
 (defun org-status--extract-tasks (subtreep)
@@ -442,6 +537,16 @@ Prompts for a filename and saves the formatted report there."
       (insert content))
     (message "Exported status report to %s" outfile)))
 
+;;; Keybinding setup
+
+(defun org-status--setup-keybindings ()
+  "Set up buffer-local keybindings for status report file.
+This function is called automatically when opening the status report file."
+  (when (and buffer-file-name
+             (string= (expand-file-name buffer-file-name)
+                      (expand-file-name org-status-file)))
+    (local-set-key (kbd "C-c C-x w") #'org-status-goto-week)))
+
 ;;; Setup function
 
 (defun org-status--make-capture-template ()
@@ -460,9 +565,11 @@ in the :config section of a use-package declaration.
 Sets up:
 1. Two org-capture templates (quick and dated)
 2. Custom org export backend for status reports
+3. Buffer-local keybinding (C-c C-x w) for navigation
 
 After running this, you can:
 - Capture tasks with C-c c s (or your capture binding + s)
+- Navigate with C-c C-x w (when in status.org)
 - Export with C-c C-e s s"
   (interactive)
 
@@ -486,6 +593,9 @@ After running this, you can:
                    ,template
                    :jump-to-captured t)
                  t))
+
+  ;; Set up keybindings for status report file
+  (add-hook 'org-mode-hook #'org-status--setup-keybindings)
 
   ;; Register export backend
   (with-eval-after-load 'ox
