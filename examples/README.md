@@ -9,7 +9,7 @@ This directory contains example configurations for different use cases.
 The default configuration with Tuesday-Monday work week. Use this if your organization has:
 - Bi-weekly text reports on Wednesday/Thursday and Sunday/Monday
 - Week starts on Tuesday
-- Split: Second half (Tue-Wed), First half (Thu-Fri-Mon)
+- Split: First half (Tue-Wed), Second half (Thu-Fri-Mon)
 
 **When to use:**
 - Default for most bi-weekly reporting schedules

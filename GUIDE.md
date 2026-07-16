@@ -10,8 +10,8 @@ This guide explains how to use org-status-report for creating weekly and bi-week
 
 - **Week runs**: Tuesday to Monday (not standard calendar week)
 - **Week numbering**: Based on Tuesday's date (ISO week number)
-- **Second Half**: Tuesday, Wednesday (2 days) - reported bi-weekly
-- **First Half**: Thursday, Friday, Monday (3 days) - reported bi-weekly
+- **First Half**: Tuesday, Wednesday (2 days) - reported bi-weekly
+- **Second Half**: Thursday, Friday, Monday (3 days) - reported bi-weekly
 - **Full Week**: Reported weekly via email
 
 > **Note**: All these settings can be customized via `M-x customize-group RET org-status RET`
@@ -20,8 +20,8 @@ This guide explains how to use org-status-report for creating weekly and bi-week
 
 **Week 28 = Tuesday July 7 to Monday July 13, 2026**
 
-- Second Half: Tuesday July 7, Wednesday July 8
-- First Half: Thursday July 9, Friday July 10, Monday July 13
+- First Half: Tuesday July 7, Wednesday July 8
+- Second Half: Thursday July 9, Friday July 10, Monday July 13
 - (Weekends are skipped)
 
 ## File Structure
@@ -84,7 +84,7 @@ The system automatically creates this hierarchy:
 ```org
 * 2026
 ** Week 28 (2026-07-07 to 2026-07-13)
-*** Second Half (Tue-Wed)
+*** First Half (Tue-Wed)
 **** 2026-07-07 Tuesday
 ***** Project A: Fix memory leak in cache handling
       https://github.com/example/project-a/issues/123
@@ -94,7 +94,7 @@ The system automatically creates this hierarchy:
 ***** Project C: Add support for new features
       https://github.com/example/project-c/issues/321
 
-*** First Half (Thu-Fri-Mon)
+*** Second Half (Thu-Fri-Mon)
 **** 2026-07-09 Thursday
 ***** General maintenance work
       - Code reviews
@@ -112,7 +112,7 @@ The system automatically creates this hierarchy:
 
 1. Open `~/org/status.org`
 2. Navigate to the current week's heading
-3. Put cursor on "Second Half (Tue-Wed)" or "First Half (Thu-Fri-Mon)" heading line
+3. Put cursor on "First Half (Tue-Wed)" or "Second Half (Thu-Fri-Mon)" heading line
 4. `C-c C-e` (open export menu)
 5. `C-s` (toggle Subtree mode - bottom of menu shows `[X] Subtree`)
 6. `s s` (Export Status Report → To buffer)
@@ -121,7 +121,7 @@ The system automatically creates this hierarchy:
 
 **Example output:**
 ```
-Second Half (Tue-Wed)
+First Half (Tue-Wed)
 
 * Project A: Review MR for Fix parsing regression
   https://github.com/example/project-a/pull/456
@@ -245,8 +245,8 @@ Includes all headings with dates and full structure - use only if you need the c
 
 ```
 1. Open ~/org/status.org
-2. C-c C-j → type "Week 28" → navigate to "Second Half (Tue-Wed)"
-3. Put cursor on "Second Half (Tue-Wed)" heading line
+2. C-c C-j → type "Week 28" → navigate to "First Half (Tue-Wed)"
+3. Put cursor on "First Half (Tue-Wed)" heading line
 4. C-c C-e (open export menu)
 5. C-s (toggle Subtree mode - bottom shows [X] Subtree)
 6. s s (Export Status Report → To buffer)
@@ -257,7 +257,7 @@ Includes all headings with dates and full structure - use only if you need the c
 
 **The exported format looks like:**
 ```
-Second Half (Tue-Wed)
+First Half (Tue-Wed)
 
 * Project A: Code review for PR #123
   https://github.com/example/project-a/pull/456
@@ -313,15 +313,15 @@ Add to your init file before calling `(org-status-report-setup)`:
 ;; Change which day the week starts (1=Mon, 2=Tue, ..., 7=Sun)
 (setq org-status-week-start-day 2)  ; Default: Tuesday
 
-;; Change which days are in second half
-(setq org-status-second-half-days '(2 3))  ; Default: Tue, Wed
+;; Change which days are in first half
+(setq org-status-first-half-days '(2 3))  ; Default: Tue, Wed
 
-;; Change which days are in first half  
-(setq org-status-first-half-days '(4 5 1))  ; Default: Thu, Fri, Mon
+;; Change which days are in second half  
+(setq org-status-second-half-days '(4 5 1))  ; Default: Thu, Fri, Mon
 
 ;; Change the labels
-(setq org-status-second-half-label "Second Half (Tue-Wed)")
-(setq org-status-first-half-label "First Half (Thu-Fri-Mon)")
+(setq org-status-first-half-label "First Half (Tue-Wed)")
+(setq org-status-second-half-label "Second Half (Thu-Fri-Mon)")
 
 ;; Change bullet point character for exports
 (setq org-status-export-bullet-char "*")  ; Default: "*"
@@ -374,8 +374,8 @@ Here's a complete setup in your init file:
   :demand t
   :custom
   (org-status-week-start-day 2)              ; Tuesday
-  (org-status-second-half-days '(2 3))       ; Tue, Wed
-  (org-status-first-half-days '(4 5 1))      ; Thu, Fri, Mon
+  (org-status-first-half-days '(2 3))        ; Tue, Wed
+  (org-status-second-half-days '(4 5 1))     ; Thu, Fri, Mon
   (org-status-export-bullet-char "*")
   :config
   (org-status-report-setup))

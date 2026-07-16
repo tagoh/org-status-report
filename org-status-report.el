@@ -52,8 +52,8 @@
 ;;     :demand t
 ;;     :custom
 ;;     (org-status-week-start-day 2)              ; Tuesday
-;;     (org-status-second-half-days '(2 3))       ; Tue, Wed
-;;     (org-status-first-half-days '(4 5 1))      ; Thu, Fri, Mon
+;;     (org-status-first-half-days '(2 3))        ; Tue, Wed
+;;     (org-status-second-half-days '(4 5 1))     ; Thu, Fri, Mon
 ;;     (org-status-export-bullet-char "*")
 ;;     :config
 ;;     (org-status-report-setup))
@@ -108,11 +108,11 @@
 ;;
 ;;   * 2026                                          <- Level 1: Year
 ;;   ** Week 28 (2026-07-07 to 2026-07-13)          <- Level 2: Week
-;;   *** Second Half (Tue-Wed)                      <- Level 3: Half
+;;   *** First Half (Tue-Wed)                       <- Level 3: Half
 ;;   **** 2026-07-08 Wednesday                      <- Level 4: Date
 ;;   ***** Project A: Fix memory leak in cache      <- Level 5: Task
 ;;         https://github.com/example/project-a/issues/123
-;;   *** First Half (Thu-Fri-Mon)
+;;   *** Second Half (Thu-Fri-Mon)
 ;;   **** 2026-07-10 Friday
 ;;   ***** Project B: Update configuration files
 
@@ -160,26 +160,26 @@ Default is 2 (Tuesday)."
   :type 'integer
   :group 'org-status)
 
-(defcustom org-status-second-half-days '(2 3)
-  "List of days in the second half of the work week.
+(defcustom org-status-first-half-days '(2 3)
+  "List of days in the first half of the work week.
 Days are numbered: 1=Monday, 2=Tuesday, 3=Wednesday, etc.
 Default is (2 3) meaning Tuesday and Wednesday."
   :type '(repeat integer)
   :group 'org-status)
 
-(defcustom org-status-first-half-days '(4 5 1)
-  "List of days in the first half of the work week.
+(defcustom org-status-second-half-days '(4 5 1)
+  "List of days in the second half of the work week.
 Days are numbered: 1=Monday, 2=Tuesday, 3=Wednesday, etc.
 Default is (4 5 1) meaning Thursday, Friday, and Monday."
   :type '(repeat integer)
   :group 'org-status)
 
-(defcustom org-status-second-half-label "Second Half (Tue-Wed)"
+(defcustom org-status-second-half-label "Second Half (Thu-Fri-Mon)"
   "Label for the second half heading in status reports."
   :type 'string
   :group 'org-status)
 
-(defcustom org-status-first-half-label "First Half (Thu-Fri-Mon)"
+(defcustom org-status-first-half-label "First Half (Tue-Wed)"
   "Label for the first half heading in status reports."
   :type 'string
   :group 'org-status)
@@ -232,10 +232,10 @@ Returns number of days to subtract to get to week start."
 
 (defun org-status--determine-half (day-of-week)
   "Determine which half of the week DAY-OF-WEEK belongs to.
-Returns either `org-status-second-half-label' or `org-status-first-half-label'."
-  (if (member day-of-week org-status-second-half-days)
-      org-status-second-half-label
-    org-status-first-half-label))
+Returns either `org-status-first-half-label' or `org-status-second-half-label'."
+  (if (member day-of-week org-status-first-half-days)
+      org-status-first-half-label
+    org-status-second-half-label))
 
 (defun org-status--week-structure (&optional time-string)
   "Calculate the org outline path for status report organized by work week.

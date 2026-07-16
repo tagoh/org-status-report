@@ -3,11 +3,12 @@
 An Emacs package for automated weekly status report organization in org-mode.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Tests](https://github.com/tagoh/org-status-report/workflows/Tests/badge.svg)](https://github.com/tagoh/org-status-report/actions)
 
 ## Features
 
 - 📅 **Automatic weekly organization** - Customizable week structure (default: Tuesday to Monday)
-- 🔀 **Configurable week splits** - First half (Thu-Fri-Mon) and Second half (Tue-Wed)
+- 🔀 **Configurable week splits** - First half (Tue-Wed) and Second half (Thu-Fri-Mon)
 - ⚡ **Quick capture** - `C-c c s` for today, `S` for any date
 - 📤 **Easy export** - Export to plain text via `C-c C-e s s`
 - 🎨 **Fully customizable** - Week start day, labels, bullet styles
@@ -20,19 +21,19 @@ An Emacs package for automated weekly status report organization in org-mode.
 ```org
 * 2026
 ** Week 28 (2026-07-07 to 2026-07-13)
-*** Second Half (Tue-Wed)
+*** First Half (Tue-Wed)
 **** 2026-07-08 Wednesday
 ***** Project A: Fix memory leak in cache module
       https://github.com/example/project-a/issues/123
 ***** Project B: Update configuration files
-*** First Half (Thu-Fri-Mon)
+*** Second Half (Thu-Fri-Mon)
 **** 2026-07-10 Friday
 ***** Project C: Add support for new API
 ```
 
 **Exported output:**
 ```
-Second Half (Tue-Wed)
+First Half (Tue-Wed)
 
 * Project A: Fix memory leak in cache module
   https://github.com/example/project-a/issues/123
@@ -170,12 +171,12 @@ After installation, restart Emacs and:
   :custom
   ;; Week structure
   (org-status-week-start-day 2)              ; Week starts Tuesday
-  (org-status-second-half-days '(2 3))       ; Tue, Wed
-  (org-status-first-half-days '(4 5 1))      ; Thu, Fri, Mon
+  (org-status-first-half-days '(2 3))        ; Tue, Wed
+  (org-status-second-half-days '(4 5 1))     ; Thu, Fri, Mon
   
   ;; Labels
-  (org-status-second-half-label "Second Half (Tue-Wed)")
-  (org-status-first-half-label "First Half (Thu-Fri-Mon)")
+  (org-status-first-half-label "First Half (Tue-Wed)")
+  (org-status-second-half-label "Second Half (Thu-Fri-Mon)")
   
   ;; Export format
   (org-status-export-bullet-char "*")        ; Use * for bullets
@@ -261,7 +262,7 @@ C-c C-c    → Save
 **For bi-weekly text reports:**
 
 1. Open `~/org/status.org`
-2. Navigate to heading (e.g., "Second Half (Tue-Wed)")
+2. Navigate to heading (e.g., "First Half (Tue-Wed)")
 3. `C-c @` - Mark subtree (see what's highlighted)
 4. `C-c C-e` - Open export menu
 5. `s s` - Export Status Report → To buffer
@@ -296,10 +297,10 @@ M-x customize-group RET org-status RET
 |----------|---------|-------------|
 | `org-status-file` | `~/org/status.org` | Where reports are stored |
 | `org-status-week-start-day` | `2` (Tue) | Day week starts (1=Mon...7=Sun) |
-| `org-status-second-half-days` | `'(2 3)` | Days in second half |
-| `org-status-first-half-days` | `'(4 5 1)` | Days in first half |
-| `org-status-second-half-label` | `"Second Half (Tue-Wed)"` | Second half heading label |
-| `org-status-first-half-label` | `"First Half (Thu-Fri-Mon)"` | First half heading label |
+| `org-status-first-half-days` | `'(2 3)` | Days in first half |
+| `org-status-second-half-days` | `'(4 5 1)` | Days in second half |
+| `org-status-first-half-label` | `"First Half (Tue-Wed)"` | First half heading label |
+| `org-status-second-half-label` | `"Second Half (Thu-Fri-Mon)"` | Second half heading label |
 | `org-status-export-bullet-char` | `"*"` | Export bullet character |
 | `org-status-capture-template-key` | `"s"` | Quick capture key |
 | `org-status-capture-dated-template-key` | `"S"` | Dated capture key |
@@ -308,6 +309,7 @@ M-x customize-group RET org-status RET
 
 - [User Guide](GUIDE.md) - Comprehensive usage guide for beginners
 - [Example Configurations](examples/) - Common configuration examples
+- [Testing Guide](TESTING.md) - How to run and write tests
 
 ## Troubleshooting
 
@@ -352,6 +354,36 @@ The default location is `~/org/status.org`, which depends on your `org-directory
 M-x eval-expression RET org-directory RET
 ```
 
+## Testing
+
+The package includes a comprehensive test suite to prevent regressions.
+
+### Running Tests
+
+**Using Make (recommended):**
+```bash
+make test          # Run all tests
+make check         # Run load check + tests
+make test-verbose  # Run with verbose output
+```
+
+**Direct execution:**
+```bash
+emacs --batch -l test-org-status-report.el
+```
+
+### Test Coverage
+
+The test suite covers:
+- Default configuration values
+- Day-to-half assignment logic
+- Week structure calculation
+- Week offset calculation
+- Semantic correctness (first/second half ordering)
+- Edge cases (year boundaries, week wraparound)
+
+All tests must pass before committing changes.
+
 ## Contributing
 
 Contributions are welcome! Please:
@@ -359,8 +391,9 @@ Contributions are welcome! Please:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+4. **Run the test suite** (`make test`)
+5. Add new tests for new functionality
+6. Submit a pull request
 
 ## License
 

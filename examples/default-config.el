@@ -1,7 +1,7 @@
 ;;; default-config.el --- Example: Default configuration (Tue-Mon week)
 
 ;; This is the default configuration with Tuesday-Monday work week
-;; Week split: Tue-Wed (second half), Thu-Fri-Mon (first half)
+;; Week split: Tue-Wed (first half), Thu-Fri-Mon (second half)
 ;; This matches many organizations' bi-weekly reporting schedules
 
 (use-package org-status-report
@@ -26,13 +26,13 @@
 ;;   ;; Week starts Tuesday
 ;;   (org-status-week-start-day 2)
 ;;
-;;   ;; Second half: Tuesday, Wednesday (comes first chronologically)
-;;   (org-status-second-half-days '(2 3))
-;;   (org-status-second-half-label "Second Half (Tue-Wed)")
+;;   ;; First half: Tuesday, Wednesday (comes first chronologically)
+;;   (org-status-first-half-days '(2 3))
+;;   (org-status-first-half-label "First Half (Tue-Wed)")
 ;;
-;;   ;; First half: Thursday, Friday, Monday
-;;   (org-status-first-half-days '(4 5 1))
-;;   (org-status-first-half-label "First Half (Thu-Fri-Mon)")
+;;   ;; Second half: Thursday, Friday, Monday
+;;   (org-status-second-half-days '(4 5 1))
+;;   (org-status-second-half-label "Second Half (Thu-Fri-Mon)")
 ;;
 ;;   ;; Org-style bullets
 ;;   (org-status-export-bullet-char "*")
