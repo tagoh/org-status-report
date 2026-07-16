@@ -1,0 +1,281 @@
+;;; test-org-status-report.el --- Tests for org-status-report -*- lexical-binding: t -*-
+
+;; Copyright (C) 2026 Akira TAGOH
+
+;; This file is part of org-status-report.
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;;; Commentary:
+
+;; Test suite for org-status-report.el
+;; Run with: emacs --batch -l test-org-status-report.el
+
+;;; Code:
+
+(add-to-list 'load-path (file-name-directory (or load-file-name buffer-file-name)))
+(require 'org-status-report)
+
+(defvar test-failures 0
+  "Number of test failures.")
+
+(defvar test-passes 0
+  "Number of test passes.")
+
+(defun test-assert (condition message)
+  "Assert that CONDITION is true, otherwise fail with MESSAGE."
+  (if condition
+      (progn
+        (setq test-passes (1+ test-passes))
+        (message "  ✓ %s" message))
+    (setq test-failures (1+ test-failures))
+    (message "  ✗ FAIL: %s" message)))
+
+(defun test-equal (actual expected message)
+  "Assert that ACTUAL equals EXPECTED, otherwise fail with MESSAGE."
+  (if (equal actual expected)
+      (progn
+        (setq test-passes (1+ test-passes))
+        (message "  ✓ %s" message))
+    (setq test-failures (1+ test-failures))
+    (message "  ✗ FAIL: %s" message)
+    (message "      Expected: %S" expected)
+    (message "      Got:      %S" actual)))
+
+(defun test-string= (actual expected message)
+  "Assert that ACTUAL string equals EXPECTED, otherwise fail with MESSAGE."
+  (if (string= actual expected)
+      (progn
+        (setq test-passes (1+ test-passes))
+        (message "  ✓ %s" message))
+    (setq test-failures (1+ test-failures))
+    (message "  ✗ FAIL: %s" message)
+    (message "      Expected: %S" expected)
+    (message "      Got:      %S" actual)))
+
+;;; Test: Default configuration values
+
+(defun test-default-configuration ()
+  "Test that default configuration values are correct."
+  (message "\n=== Testing Default Configuration ===")
+
+  (test-equal org-status-week-start-day 2
+              "Week starts on Tuesday (day 2)")
+
+  (test-equal org-status-first-half-days '(2 3)
+              "First half includes Tuesday and Wednesday")
+
+  (test-equal org-status-second-half-days '(4 5 1)
+              "Second half includes Thursday, Friday, and Monday")
+
+  (test-string= org-status-first-half-label "First Half (Tue-Wed)"
+                "First half label is 'First Half (Tue-Wed)'")
+
+  (test-string= org-status-second-half-label "Second Half (Thu-Fri-Mon)"
+                "Second half label is 'Second Half (Thu-Fri-Mon)'"))
+
+;;; Test: Day-to-half assignment
+
+(defun test-day-to-half-assignment ()
+  "Test that days are assigned to correct halves."
+  (message "\n=== Testing Day-to-Half Assignment ===")
+
+  ;; Test Tuesday (day 2)
+  (test-string= (org-status--determine-half 2) "First Half (Tue-Wed)"
+                "Tuesday (2) -> First Half")
+
+  ;; Test Wednesday (day 3)
+  (test-string= (org-status--determine-half 3) "First Half (Tue-Wed)"
+                "Wednesday (3) -> First Half")
+
+  ;; Test Thursday (day 4)
+  (test-string= (org-status--determine-half 4) "Second Half (Thu-Fri-Mon)"
+                "Thursday (4) -> Second Half")
+
+  ;; Test Friday (day 5)
+  (test-string= (org-status--determine-half 5) "Second Half (Thu-Fri-Mon)"
+                "Friday (5) -> Second Half")
+
+  ;; Test Monday (day 1)
+  (test-string= (org-status--determine-half 1) "Second Half (Thu-Fri-Mon)"
+                "Monday (1) -> Second Half")
+
+  ;; Saturday and Sunday should fall into second half (default behavior)
+  (test-string= (org-status--determine-half 6) "Second Half (Thu-Fri-Mon)"
+                "Saturday (6) -> Second Half (weekend)")
+
+  (test-string= (org-status--determine-half 7) "Second Half (Thu-Fri-Mon)"
+                "Sunday (7) -> Second Half (weekend)"))
+
+;;; Test: Week structure calculation
+
+(defun test-week-structure ()
+  "Test week structure calculation for specific dates."
+  (message "\n=== Testing Week Structure Calculation ===")
+
+  ;; Week 28: 2026-07-07 (Tue) to 2026-07-13 (Mon)
+  (let ((structure (org-status--week-structure "2026-07-08")))
+    (test-string= (nth 0 structure) "2026"
+                  "2026-07-08: Year is 2026")
+    (test-string= (nth 1 structure) "Week 28 (2026-07-07 to 2026-07-13)"
+                  "2026-07-08: Week 28 range")
+    (test-string= (nth 2 structure) "First Half (Tue-Wed)"
+                  "2026-07-08 (Wed) -> First Half"))
+
+  (let ((structure (org-status--week-structure "2026-07-09")))
+    (test-string= (nth 2 structure) "Second Half (Thu-Fri-Mon)"
+                  "2026-07-09 (Thu) -> Second Half"))
+
+  ;; Week 29: 2026-07-14 (Tue) to 2026-07-20 (Mon)
+  (let ((structure (org-status--week-structure "2026-07-14")))
+    (test-string= (nth 1 structure) "Week 29 (2026-07-14 to 2026-07-20)"
+                  "2026-07-14: Week 29 range")
+    (test-string= (nth 2 structure) "First Half (Tue-Wed)"
+                  "2026-07-14 (Tue) -> First Half"))
+
+  (let ((structure (org-status--week-structure "2026-07-15")))
+    (test-string= (nth 2 structure) "First Half (Tue-Wed)"
+                  "2026-07-15 (Wed) -> First Half"))
+
+  (let ((structure (org-status--week-structure "2026-07-16")))
+    (test-string= (nth 2 structure) "Second Half (Thu-Fri-Mon)"
+                  "2026-07-16 (Thu) -> Second Half"))
+
+  (let ((structure (org-status--week-structure "2026-07-17")))
+    (test-string= (nth 2 structure) "Second Half (Thu-Fri-Mon)"
+                  "2026-07-17 (Fri) -> Second Half"))
+
+  (let ((structure (org-status--week-structure "2026-07-20")))
+    (test-string= (nth 2 structure) "Second Half (Thu-Fri-Mon)"
+                  "2026-07-20 (Mon) -> Second Half"))
+
+  ;; Week 30: starts on 2026-07-21 (Tue)
+  (let ((structure (org-status--week-structure "2026-07-21")))
+    (test-string= (nth 1 structure) "Week 30 (2026-07-21 to 2026-07-27)"
+                  "2026-07-21: Week 30 range")
+    (test-string= (nth 2 structure) "First Half (Tue-Wed)"
+                  "2026-07-21 (Tue) -> First Half")))
+
+;;; Test: Week offset calculation
+
+(defun test-week-offset-calculation ()
+  "Test the week offset calculation logic."
+  (message "\n=== Testing Week Offset Calculation ===")
+
+  ;; Week starts on Tuesday (day 2)
+  (test-equal (org-status--calculate-week-offset 2) 0
+              "Tuesday: offset is 0 (week start)")
+
+  (test-equal (org-status--calculate-week-offset 3) 1
+              "Wednesday: offset is 1")
+
+  (test-equal (org-status--calculate-week-offset 4) 2
+              "Thursday: offset is 2")
+
+  (test-equal (org-status--calculate-week-offset 5) 3
+              "Friday: offset is 3")
+
+  (test-equal (org-status--calculate-week-offset 6) 4
+              "Saturday: offset is 4")
+
+  (test-equal (org-status--calculate-week-offset 7) 5
+              "Sunday: offset is 5")
+
+  (test-equal (org-status--calculate-week-offset 1) 6
+              "Monday: offset is 6 (wraps from previous week)"))
+
+;;; Test: Semantic correctness
+
+(defun test-semantic-correctness ()
+  "Test that first/second half semantics are correct."
+  (message "\n=== Testing Semantic Correctness ===")
+
+  ;; First half should come first chronologically in the week
+  (test-assert (member 2 org-status-first-half-days)
+               "First half contains Tuesday (first work day of week)")
+
+  (test-assert (member 3 org-status-first-half-days)
+               "First half contains Wednesday")
+
+  ;; Second half should come later chronologically
+  (test-assert (member 4 org-status-second-half-days)
+               "Second half contains Thursday")
+
+  (test-assert (member 5 org-status-second-half-days)
+               "Second half contains Friday")
+
+  ;; Monday from next calendar week is in second half
+  (test-assert (member 1 org-status-second-half-days)
+               "Second half contains Monday (from next calendar week)")
+
+  ;; Labels should match the days
+  (test-assert (string-match-p "Tue-Wed" org-status-first-half-label)
+               "First half label mentions Tue-Wed")
+
+  (test-assert (string-match-p "Thu-Fri-Mon" org-status-second-half-label)
+               "Second half label mentions Thu-Fri-Mon"))
+
+;;; Test: Edge cases
+
+(defun test-edge-cases ()
+  "Test edge cases and boundary conditions."
+  (message "\n=== Testing Edge Cases ===")
+
+  ;; Test year boundary (Monday Jan 4, 2027 is in week starting Tue Jan 5, 2027)
+  (let ((structure (org-status--week-structure "2027-01-04")))
+    (test-string= (nth 2 structure) "Second Half (Thu-Fri-Mon)"
+                  "Monday 2027-01-04 -> Second Half (before week start)"))
+
+  ;; Test first Tuesday of year
+  (let ((structure (org-status--week-structure "2027-01-05")))
+    (test-string= (nth 2 structure) "First Half (Tue-Wed)"
+                  "Tuesday 2027-01-05 -> First Half"))
+
+  ;; Test end of year (Monday Dec 27, 2026)
+  (let ((structure (org-status--week-structure "2026-12-28")))
+    (test-string= (nth 2 structure) "Second Half (Thu-Fri-Mon)"
+                  "Monday 2026-12-28 -> Second Half")))
+
+;;; Test runner
+
+(defun run-all-tests ()
+  "Run all tests and report results."
+  (setq test-failures 0)
+  (setq test-passes 0)
+
+  (message "========================================")
+  (message "org-status-report.el Test Suite")
+  (message "========================================")
+
+  (test-default-configuration)
+  (test-day-to-half-assignment)
+  (test-week-structure)
+  (test-week-offset-calculation)
+  (test-semantic-correctness)
+  (test-edge-cases)
+
+  (message "\n========================================")
+  (message "Test Results")
+  (message "========================================")
+  (message "Passed: %d" test-passes)
+  (message "Failed: %d" test-failures)
+  (message "Total:  %d" (+ test-passes test-failures))
+  (message "========================================")
+
+  (if (= test-failures 0)
+      (progn
+        (message "\n✓ ALL TESTS PASSED")
+        (kill-emacs 0))
+    (progn
+      (message "\n✗ SOME TESTS FAILED")
+      (kill-emacs 1))))
+
+;; Run tests when loaded in batch mode
+(when noninteractive
+  (run-all-tests))
+
+(provide 'test-org-status-report)
+;;; test-org-status-report.el ends here

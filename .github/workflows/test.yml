@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        emacs-version:
+          - '27.1'
+          - '27.2'
+          - '28.1'
+          - '28.2'
+          - '29.1'
+          - 'snapshot'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Emacs
+      uses: purcell/setup-emacs@master
+      with:
+        version: ${{ matrix.emacs-version }}
+
+    - name: Run tests
+      run: make test
+
+    - name: Check package loads
+      run: make check-load
