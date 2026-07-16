@@ -213,6 +213,10 @@ Default is \"S\" (capital S). Change if it conflicts with existing templates."
 This is dynamically bound when capturing for a specific date
 instead of today. Should not be set directly by users.")
 
+(defvar org-status--created-new-structure nil
+  "Flag indicating whether new heading structure was created during capture.
+Set to t when new headings are created, used to trigger display refresh.")
+
 ;;; Week structure calculation
 
 (defun org-status--calculate-week-offset (day-of-week)
@@ -279,7 +283,9 @@ Returns point at the beginning of the heading line."
         (beginning-of-line)
       (goto-char parent-end)
       (insert (make-string level ?*) " " heading "\n")
-      (beginning-of-line))
+      (beginning-of-line)
+      ;; Mark that we created new structure
+      (setq org-status--created-new-structure t))
     (point)))
 
 (defun org-status--position-for-capture ()
@@ -304,6 +310,8 @@ Creates the complete 5-level hierarchy if it doesn't exist:
   Year -> Week -> Half -> Date -> [Task goes here]
 
 Positions point after the date heading for org-capture to insert new task."
+  ;; Reset flag at start of capture
+  (setq org-status--created-new-structure nil)
   (let* ((path (org-status--week-structure))
          (headings (list (cons (nth 0 path) org-status--year-level)
                          (cons (nth 1 path) org-status--week-level)
@@ -330,6 +338,25 @@ then creates/navigates to the appropriate heading structure for that date."
   (let* ((date-string (org-read-date nil nil nil "Select date for status report: "))
          (org-status--capture-date (apply #'encode-time (org-parse-time-string date-string))))
     (org-status--goto-or-create)))
+
+;;; Display refresh after capture
+
+(defun org-status--refresh-display-after-capture ()
+  "Refresh org-mode display after capture if new structure was created.
+This function is called via `org-capture-after-finalize-hook' to ensure
+proper visual indentation when new headings are created during capture."
+  (when org-status--created-new-structure
+    (let ((status-buffer (get-file-buffer org-status-file)))
+      (when status-buffer
+        (with-current-buffer status-buffer
+          ;; Refresh org-indent-mode if active
+          (when (bound-and-true-p org-indent-mode)
+            (org-indent-indent-buffer))
+          ;; Refresh font-lock
+          (font-lock-flush)
+          (font-lock-ensure))
+        ;; Reset flag
+        (setq org-status--created-new-structure nil)))))
 
 ;;; Navigation functions
 
@@ -566,6 +593,7 @@ Sets up:
 1. Two org-capture templates (quick and dated)
 2. Custom org export backend for status reports
 3. Buffer-local keybinding (C-c C-x w) for navigation
+4. Display refresh hook for proper indentation after capture
 
 After running this, you can:
 - Capture tasks with C-c c s (or your capture binding + s)
@@ -596,6 +624,9 @@ After running this, you can:
 
   ;; Set up keybindings for status report file
   (add-hook 'org-mode-hook #'org-status--setup-keybindings)
+
+  ;; Set up display refresh after capture
+  (add-hook 'org-capture-after-finalize-hook #'org-status--refresh-display-after-capture)
 
   ;; Register export backend
   (with-eval-after-load 'ox
