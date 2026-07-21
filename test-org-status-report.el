@@ -239,6 +239,104 @@
     (test-string= (nth 2 structure) "Second Half (Thu-Fri-Mon)"
                   "Monday 2026-12-28 -> Second Half")))
 
+;;; Test: Capture cancellation cleanup
+
+(defun test-capture-cancellation-cleanup ()
+  "Test that cancelled captures clean up empty heading structure."
+  (message "\n=== Testing Capture Cancellation Cleanup ===")
+
+  (with-temp-buffer
+    (org-mode)
+
+    ;; Create a structure as if capture created it
+    (insert "* 2026\n")
+    (insert "** Week 30 (2026-07-21 to 2026-07-27)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-07-21 Tuesday\n")
+
+    ;; Test: empty date heading has no tasks
+    (goto-char (point-min))
+    (re-search-forward "^\\*\\*\\*\\* 2026-07-21")
+    (beginning-of-line)
+    (test-assert (not (org-status--heading-has-tasks-p))
+                 "Empty date heading has no tasks")
+
+    ;; Add a task and verify it's detected
+    (goto-char (point-max))
+    (insert "***** Test task\n")
+    (goto-char (point-min))
+    (re-search-forward "^\\*\\*\\*\\* 2026-07-21")
+    (beginning-of-line)
+    (test-assert (org-status--heading-has-tasks-p)
+                 "Date heading with task is detected"))
+
+  ;; Test empty structure cleanup
+  (with-temp-buffer
+    (org-mode)
+    (setq org-status-file (buffer-file-name))
+
+    ;; Create empty structure
+    (insert "* 2026\n")
+    (insert "** Week 30 (2026-07-21 to 2026-07-27)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-07-21 Tuesday\n")
+
+    (let ((initial-content (buffer-string)))
+      ;; Simulate cleanup
+      (goto-char (point-min))
+      (re-search-forward "^\\*\\*\\*\\* 2026-07-21")
+      (beginning-of-line)
+      (org-status--remove-empty-date-heading)
+
+      (goto-char (point-min))
+      (when (re-search-forward "^\\*\\*\\* First Half" nil t)
+        (beginning-of-line)
+        (org-status--remove-empty-half-heading))
+
+      (goto-char (point-min))
+      (when (re-search-forward "^\\*\\* Week 30" nil t)
+        (beginning-of-line)
+        (org-status--remove-empty-week-heading))
+
+      (goto-char (point-min))
+      (when (re-search-forward "^\\* 2026" nil t)
+        (beginning-of-line)
+        (org-status--remove-empty-year-heading))
+
+      ;; After cleanup, buffer should be empty
+      (test-assert (string-empty-p (string-trim (buffer-string)))
+                   "Empty structure is completely removed after cleanup")))
+
+  ;; Test that non-empty structure is preserved
+  (with-temp-buffer
+    (org-mode)
+
+    (insert "* 2026\n")
+    (insert "** Week 30 (2026-07-21 to 2026-07-27)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-07-21 Tuesday\n")
+    (insert "***** Test task\n")
+
+    (goto-char (point-min))
+    (re-search-forward "^\\*\\*\\*\\* 2026-07-21")
+    (beginning-of-line)
+    (let ((removed (org-status--remove-empty-date-heading)))
+      (test-assert (not removed)
+                   "Date heading with tasks is not removed"))
+
+    ;; Verify structure is intact
+    (goto-char (point-min))
+    (test-assert (re-search-forward "^\\* 2026" nil t)
+                 "Year heading preserved when has content")
+    (test-assert (re-search-forward "^\\*\\* Week 30" nil t)
+                 "Week heading preserved when has content")
+    (test-assert (re-search-forward "^\\*\\*\\* First Half" nil t)
+                 "Half heading preserved when has content")
+    (test-assert (re-search-forward "^\\*\\*\\*\\* 2026-07-21" nil t)
+                 "Date heading preserved when has tasks")
+    (test-assert (re-search-forward "^\\*\\*\\*\\*\\* Test task" nil t)
+                 "Task preserved")))
+
 ;;; Test runner
 
 (defun run-all-tests ()
@@ -256,6 +354,7 @@
   (test-week-offset-calculation)
   (test-semantic-correctness)
   (test-edge-cases)
+  (test-capture-cancellation-cleanup)
 
   (message "\n========================================")
   (message "Test Results")

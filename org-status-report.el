@@ -341,22 +341,161 @@ then creates/navigates to the appropriate heading structure for that date."
 
 ;;; Display refresh after capture
 
+(defun org-status--heading-has-tasks-p ()
+  "Check if current heading has any task-level (level 5) children.
+Returns t if tasks exist, nil otherwise."
+  (let ((has-tasks nil)
+        (task-re (concat "^"
+                         (regexp-quote (make-string org-status--task-level ?*))
+                         " "))
+        (end (save-excursion (org-end-of-subtree t t) (point))))
+    (save-excursion
+      (forward-line 1)
+      (when (re-search-forward task-re end t)
+        (setq has-tasks t)))
+    has-tasks))
+
+(defun org-status--remove-empty-date-heading ()
+  "Remove current date heading if it has no tasks.
+Returns t if heading was removed, nil otherwise."
+  (when (and (org-at-heading-p)
+             (= (org-current-level) org-status--date-level)
+             (not (org-status--heading-has-tasks-p)))
+    (delete-region (line-beginning-position)
+                   (save-excursion (org-end-of-subtree t t) (point)))
+    t))
+
+(defun org-status--remove-empty-half-heading ()
+  "Remove current half heading if it has no date children.
+Returns t if heading was removed, nil otherwise."
+  (when (and (org-at-heading-p)
+             (= (org-current-level) org-status--half-level))
+    (let ((has-dates nil)
+          (date-re (concat "^"
+                           (regexp-quote (make-string org-status--date-level ?*))
+                           " "))
+          (end (save-excursion (org-end-of-subtree t t) (point))))
+      (save-excursion
+        (forward-line 1)
+        (when (re-search-forward date-re end t)
+          (setq has-dates t)))
+      (when (not has-dates)
+        (delete-region (line-beginning-position)
+                       (save-excursion (org-end-of-subtree t t) (point)))
+        t))))
+
+(defun org-status--remove-empty-week-heading ()
+  "Remove current week heading if it has no half children.
+Returns t if heading was removed, nil otherwise."
+  (when (and (org-at-heading-p)
+             (= (org-current-level) org-status--week-level))
+    (let ((has-halves nil)
+          (half-re (concat "^"
+                           (regexp-quote (make-string org-status--half-level ?*))
+                           " "))
+          (end (save-excursion (org-end-of-subtree t t) (point))))
+      (save-excursion
+        (forward-line 1)
+        (when (re-search-forward half-re end t)
+          (setq has-halves t)))
+      (when (not has-halves)
+        (delete-region (line-beginning-position)
+                       (save-excursion (org-end-of-subtree t t) (point)))
+        t))))
+
+(defun org-status--remove-empty-year-heading ()
+  "Remove current year heading if it has no week children.
+Returns t if heading was removed, nil otherwise."
+  (when (and (org-at-heading-p)
+             (= (org-current-level) org-status--year-level))
+    (let ((has-weeks nil)
+          (week-re (concat "^"
+                           (regexp-quote (make-string org-status--week-level ?*))
+                           " "))
+          (end (save-excursion (org-end-of-subtree t t) (point))))
+      (save-excursion
+        (forward-line 1)
+        (when (re-search-forward week-re end t)
+          (setq has-weeks t)))
+      (when (not has-weeks)
+        (delete-region (line-beginning-position)
+                       (save-excursion (org-end-of-subtree t t) (point)))
+        t))))
+
+(defun org-status--cleanup-empty-structure ()
+  "Clean up empty heading structure after capture.
+Removes empty date, half, week, and year headings bottom-up.
+This is safe to run after any capture - it only removes truly empty headings."
+  (let ((status-buffer (get-file-buffer org-status-file)))
+    (when status-buffer
+      (with-current-buffer status-buffer
+        (save-excursion
+          ;; Process from bottom-up to handle nested deletions correctly
+          ;; We go through the buffer multiple times until no more deletions occur
+          (let ((deleted-something t))
+            (while deleted-something
+              (setq deleted-something nil)
+
+              ;; Remove empty date headings
+              (goto-char (point-min))
+              (while (re-search-forward
+                      (concat "^" (regexp-quote (make-string org-status--date-level ?*)) " ")
+                      nil t)
+                (beginning-of-line)
+                (if (org-status--remove-empty-date-heading)
+                    (setq deleted-something t)
+                  (forward-line 1)))
+
+              ;; Remove empty half headings
+              (goto-char (point-min))
+              (while (re-search-forward
+                      (concat "^" (regexp-quote (make-string org-status--half-level ?*)) " ")
+                      nil t)
+                (beginning-of-line)
+                (if (org-status--remove-empty-half-heading)
+                    (setq deleted-something t)
+                  (forward-line 1)))
+
+              ;; Remove empty week headings
+              (goto-char (point-min))
+              (while (re-search-forward
+                      (concat "^" (regexp-quote (make-string org-status--week-level ?*)) " ")
+                      nil t)
+                (beginning-of-line)
+                (if (org-status--remove-empty-week-heading)
+                    (setq deleted-something t)
+                  (forward-line 1)))
+
+              ;; Remove empty year headings
+              (goto-char (point-min))
+              (while (re-search-forward
+                      (concat "^" (regexp-quote (make-string org-status--year-level ?*)) " ")
+                      nil t)
+                (beginning-of-line)
+                (if (org-status--remove-empty-year-heading)
+                    (setq deleted-something t)
+                  (forward-line 1))))))))))
+
 (defun org-status--refresh-display-after-capture ()
-  "Refresh org-mode display after capture if new structure was created.
-This function is called via `org-capture-after-finalize-hook' to ensure
-proper visual indentation when new headings are created during capture."
+  "Refresh org-mode display and clean up empty structure after capture.
+This function is called via `org-capture-after-finalize-hook'.
+
+Always runs cleanup to remove any empty headings (from aborted captures).
+Then refreshes display if new structure was created."
   (when org-status--created-new-structure
     (let ((status-buffer (get-file-buffer org-status-file)))
       (when status-buffer
         (with-current-buffer status-buffer
-          ;; Refresh org-indent-mode if active
+          ;; Always clean up empty structure (handles both abort and success cases)
+          (org-status--cleanup-empty-structure)
+
+          ;; Refresh display
           (when (bound-and-true-p org-indent-mode)
             (org-indent-indent-buffer))
-          ;; Refresh font-lock
           (font-lock-flush)
-          (font-lock-ensure))
-        ;; Reset flag
-        (setq org-status--created-new-structure nil)))))
+          (font-lock-ensure))))
+    ;; Reset flag
+    (setq org-status--created-new-structure nil)))
 
 ;;; Navigation functions
 
