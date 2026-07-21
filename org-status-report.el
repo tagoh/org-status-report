@@ -174,15 +174,22 @@ Default is (4 5 1) meaning Thursday, Friday, and Monday."
   :type '(repeat integer)
   :group 'org-status)
 
-(defcustom org-status-second-half-label "Second Half (Thu-Fri-Mon)"
-  "Label for the second half heading in status reports."
-  :type 'string
-  :group 'org-status)
+(defun org-status--day-abbrev (day-num)
+  "Return abbreviated day name for DAY-NUM (1=Monday, 7=Sunday)."
+  (aref ["Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"] (1- day-num)))
 
-(defcustom org-status-first-half-label "First Half (Tue-Wed)"
-  "Label for the first half heading in status reports."
-  :type 'string
-  :group 'org-status)
+(defun org-status--make-half-label (name days)
+  "Generate a half-week label from NAME and DAYS list."
+  (format "%s (%s)" name
+          (mapconcat #'org-status--day-abbrev days "-")))
+
+(defun org-status-first-half-label ()
+  "Return the label for the first half of the work week."
+  (org-status--make-half-label "First Half" org-status-first-half-days))
+
+(defun org-status-second-half-label ()
+  "Return the label for the second half of the work week."
+  (org-status--make-half-label "Second Half" org-status-second-half-days))
 
 (defcustom org-status-export-bullet-char "*"
   "Character to use for bullet points in status report exports.
@@ -232,10 +239,10 @@ Returns number of days to subtract to get to week start."
 
 (defun org-status--determine-half (day-of-week)
   "Determine which half of the week DAY-OF-WEEK belongs to.
-Returns either `org-status-first-half-label' or `org-status-second-half-label'."
+Returns the label from `org-status-first-half-label' or `org-status-second-half-label'."
   (if (member day-of-week org-status-first-half-days)
-      org-status-first-half-label
-    org-status-second-half-label))
+      (org-status-first-half-label)
+    (org-status-second-half-label)))
 
 (defun org-status--week-structure (&optional time-string)
   "Calculate the org outline path for status report organized by work week.

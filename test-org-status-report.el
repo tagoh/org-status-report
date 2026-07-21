@@ -71,10 +71,10 @@
   (test-equal org-status-second-half-days '(4 5 1)
               "Second half includes Thursday, Friday, and Monday")
 
-  (test-string= org-status-first-half-label "First Half (Tue-Wed)"
+  (test-string= (org-status-first-half-label) "First Half (Tue-Wed)"
                 "First half label is 'First Half (Tue-Wed)'")
 
-  (test-string= org-status-second-half-label "Second Half (Thu-Fri-Mon)"
+  (test-string= (org-status-second-half-label) "Second Half (Thu-Fri-Mon)"
                 "Second half label is 'Second Half (Thu-Fri-Mon)'"))
 
 ;;; Test: Day-to-half assignment
@@ -212,10 +212,10 @@
                "Second half contains Monday (from next calendar week)")
 
   ;; Labels should match the days
-  (test-assert (string-match-p "Tue-Wed" org-status-first-half-label)
+  (test-assert (string-match-p "Tue-Wed" (org-status-first-half-label))
                "First half label mentions Tue-Wed")
 
-  (test-assert (string-match-p "Thu-Fri-Mon" org-status-second-half-label)
+  (test-assert (string-match-p "Thu-Fri-Mon" (org-status-second-half-label))
                "Second half label mentions Thu-Fri-Mon"))
 
 ;;; Test: Edge cases

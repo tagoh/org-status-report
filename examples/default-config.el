@@ -28,11 +28,9 @@
 ;;
 ;;   ;; First half: Tuesday, Wednesday (comes first chronologically)
 ;;   (org-status-first-half-days '(2 3))
-;;   (org-status-first-half-label "First Half (Tue-Wed)")
 ;;
 ;;   ;; Second half: Thursday, Friday, Monday
 ;;   (org-status-second-half-days '(4 5 1))
-;;   (org-status-second-half-label "Second Half (Thu-Fri-Mon)")
 ;;
 ;;   ;; Org-style bullets
 ;;   (org-status-export-bullet-char "*")
