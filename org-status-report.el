@@ -619,6 +619,19 @@ Returns an alist of (task-title . task-content) where:
         (widen)))
     (nreverse tasks)))
 
+(defun org-status--deduplicate-tasks (tasks)
+  "Remove duplicate TASKS by title, keeping the last entry for each.
+TASKS is an alist of (task-title . task-content)."
+  (let ((last-seen (make-hash-table :test 'equal))
+        (order '()))
+    (dolist (task tasks)
+      (let ((title (car task)))
+        (unless (gethash title last-seen)
+          (push title order))
+        (puthash title task last-seen)))
+    (mapcar (lambda (title) (gethash title last-seen))
+            (nreverse order))))
+
 (defun org-status--format-task (task bullet-char)
   "Format a single TASK using BULLET-CHAR.
 TASK is a cons cell (title . content)."
@@ -663,7 +676,8 @@ Otherwise extracts from entire buffer."
     (when subtreep
       (unless (org-at-heading-p)
         (org-back-to-heading t)))
-    (org-status--extract-tasks subtreep)))
+    (org-status--deduplicate-tasks
+     (org-status--extract-tasks subtreep))))
 
 (defun org-status--format-export-content (subtreep)
   "Format export content based on SUBTREEP.

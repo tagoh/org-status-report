@@ -337,6 +337,86 @@
     (test-assert (re-search-forward "^\\*\\*\\*\\*\\* Test task" nil t)
                  "Task preserved")))
 
+;;; Test: Export deduplication
+
+(defun test-export-deduplication ()
+  "Test that export deduplicates tasks by title, keeping the last entry."
+  (message "\n=== Testing Export Deduplication ===")
+
+  ;; Single entry: unchanged
+  (let ((tasks '(("Project A: Fix bug" . "found root cause"))))
+    (let ((result (org-status--deduplicate-tasks tasks)))
+      (test-equal (length result) 1
+                  "Single entry: one result")
+      (test-string= (caar result) "Project A: Fix bug"
+                    "Single entry: title preserved")
+      (test-string= (cdar result) "found root cause"
+                    "Single entry: content preserved")))
+
+  ;; Duplicate title: keep last content
+  (let ((tasks '(("Project A: Fix bug" . "day 1 progress")
+                 ("Project A: Fix bug" . "day 2 progress"))))
+    (let ((result (org-status--deduplicate-tasks tasks)))
+      (test-equal (length result) 1
+                  "Duplicate title: deduplicated to one")
+      (test-string= (cdar result) "day 2 progress"
+                    "Duplicate title: last content kept")))
+
+  ;; Multiple distinct titles: all preserved in order
+  (let ((tasks '(("Project A: Fix bug" . "notes A")
+                 ("Project B: Add feature" . "notes B")
+                 ("Project C: Review" . "notes C"))))
+    (let ((result (org-status--deduplicate-tasks tasks)))
+      (test-equal (length result) 3
+                  "Distinct titles: all three preserved")
+      (test-string= (caar result) "Project A: Fix bug"
+                    "Distinct titles: order preserved (first)")
+      (test-string= (car (nth 2 result)) "Project C: Review"
+                    "Distinct titles: order preserved (last)")))
+
+  ;; Mixed: some duplicated, some unique
+  (let ((tasks '(("Project A: Fix bug" . "day 1")
+                 ("Project B: Add feature" . "notes B")
+                 ("Project A: Fix bug" . "day 2")
+                 ("Project C: Review" . "notes C")
+                 ("Project A: Fix bug" . "day 3"))))
+    (let ((result (org-status--deduplicate-tasks tasks)))
+      (test-equal (length result) 3
+                  "Mixed: three unique titles")
+      (test-string= (cdar result) "day 3"
+                    "Mixed: Project A keeps last (day 3)")
+      (test-string= (caar result) "Project A: Fix bug"
+                    "Mixed: first-seen order preserved for A")
+      (test-string= (car (cadr result)) "Project B: Add feature"
+                    "Mixed: B stays in second position")))
+
+  ;; Full export pipeline with org buffer
+  (with-temp-buffer
+    (org-mode)
+    (insert "* 2026\n")
+    (insert "** Week 30 (2026-07-21 to 2026-07-27)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-07-21 Tuesday\n")
+    (insert "***** Project A: Fix memory leak\n")
+    (insert "      Found root cause in cache\n")
+    (insert "**** 2026-07-22 Wednesday\n")
+    (insert "***** Project A: Fix memory leak\n")
+    (insert "      Submitted patch for review\n")
+    (insert "***** Project B: Write docs\n")
+    (insert "      Started API docs\n")
+
+    (goto-char (point-min))
+    (re-search-forward "^\\*\\*\\* First Half")
+    (beginning-of-line)
+    (let ((tasks (org-status--deduplicate-tasks
+                  (org-status--extract-tasks t))))
+      (test-equal (length tasks) 2
+                  "Org buffer: two unique tasks from first half")
+      (test-string= (cdar tasks) "Submitted patch for review"
+                    "Org buffer: Project A keeps Wednesday's content")
+      (test-string= (car (cadr tasks)) "Project B: Write docs"
+                    "Org buffer: Project B preserved"))))
+
 ;;; Test runner
 
 (defun run-all-tests ()
@@ -355,6 +435,7 @@
   (test-semantic-correctness)
   (test-edge-cases)
   (test-capture-cancellation-cleanup)
+  (test-export-deduplication)
 
   (message "\n========================================")
   (message "Test Results")
