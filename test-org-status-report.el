@@ -417,6 +417,119 @@
       (test-string= (car (cadr tasks)) "Project B: Write docs"
                     "Org buffer: Project B preserved"))))
 
+;;; Test: Task name parsing
+
+(defun test-task-name-parsing ()
+  "Test parsing of project and task names from task titles."
+  (message "\n=== Testing Task Name Parsing ===")
+
+  ;; Parse project from title
+  (test-string= (org-status--parse-project-from-title "Project A: Fix bug")
+                "Project A"
+                "Parse project from 'Project A: Fix bug'")
+
+  (test-string= (org-status--parse-project-from-title "No colon here")
+                "No colon here"
+                "Parse project with no separator returns full title")
+
+  (test-string= (org-status--parse-project-from-title "Infra: CI: Fix pipeline")
+                "Infra"
+                "Parse project splits on first ': ' only")
+
+  (test-string= (org-status--parse-project-from-title "")
+                ""
+                "Parse project from empty string")
+
+  ;; Parse task from title
+  (test-string= (org-status--parse-task-from-title "Project A: Fix bug")
+                "Fix bug"
+                "Parse task from 'Project A: Fix bug'")
+
+  (test-string= (org-status--parse-task-from-title "No colon here")
+                ""
+                "Parse task with no separator returns empty string")
+
+  (test-string= (org-status--parse-task-from-title "Infra: CI: Fix pipeline")
+                "CI: Fix pipeline"
+                "Parse task preserves everything after first ': '")
+
+  (test-string= (org-status--parse-task-from-title "")
+                ""
+                "Parse task from empty string"))
+
+;;; Test: Task name collection
+
+(defun test-task-name-collection ()
+  "Test collection of task titles, project names, and tasks per project."
+  (message "\n=== Testing Task Name Collection ===")
+
+  (let* ((temp-file (make-temp-file "org-status-test-" nil ".org"))
+         (org-status-file temp-file))
+    (unwind-protect
+        (progn
+          ;; Write sample org content
+          (with-temp-file temp-file
+            (insert "* 2026\n")
+            (insert "** Week 28 (2026-07-07 to 2026-07-13)\n")
+            (insert "*** First Half (Tue-Wed)\n")
+            (insert "**** 2026-07-07 Tuesday\n")
+            (insert "***** Project A: Fix memory leak\n")
+            (insert "***** Project B: Write docs\n")
+            (insert "**** 2026-07-08 Wednesday\n")
+            (insert "***** Project A: Fix memory leak\n")
+            (insert "***** Project A: Add tests\n")
+            (insert "***** Project C: Code review\n"))
+
+          ;; Test collect-task-titles
+          (let ((titles (org-status--collect-task-titles)))
+            (test-equal (length titles) 4
+                        "Collect titles: 4 unique titles (deduped)")
+            (test-assert (member "Project A: Fix memory leak" titles)
+                         "Collect titles: includes 'Project A: Fix memory leak'")
+            (test-assert (member "Project B: Write docs" titles)
+                         "Collect titles: includes 'Project B: Write docs'"))
+
+          ;; Test collect-project-names
+          (let ((projects (org-status--collect-project-names)))
+            (test-equal (length projects) 3
+                        "Collect projects: 3 unique projects")
+            (test-assert (member "Project A" projects)
+                         "Collect projects: includes 'Project A'")
+            (test-assert (member "Project B" projects)
+                         "Collect projects: includes 'Project B'")
+            (test-assert (member "Project C" projects)
+                         "Collect projects: includes 'Project C'"))
+
+          ;; Test collect-tasks-for-project
+          (let ((tasks-a (org-status--collect-tasks-for-project "Project A")))
+            (test-equal (length tasks-a) 2
+                        "Tasks for Project A: 2 unique tasks")
+            (test-assert (member "Fix memory leak" tasks-a)
+                         "Tasks for Project A: includes 'Fix memory leak'")
+            (test-assert (member "Add tests" tasks-a)
+                         "Tasks for Project A: includes 'Add tests'"))
+
+          (let ((tasks-b (org-status--collect-tasks-for-project "Project B")))
+            (test-equal (length tasks-b) 1
+                        "Tasks for Project B: 1 task")
+            (test-string= (car tasks-b) "Write docs"
+                          "Tasks for Project B: is 'Write docs'"))
+
+          (let ((tasks-x (org-status--collect-tasks-for-project "Nonexistent")))
+            (test-assert (null tasks-x)
+                         "Tasks for nonexistent project: empty list")))
+
+      ;; Cleanup
+      (let ((buf (get-file-buffer temp-file)))
+        (when buf (kill-buffer buf)))
+      (delete-file temp-file)))
+
+  ;; Test with empty/nonexistent file
+  (let ((org-status-file "/tmp/org-status-nonexistent-test.org"))
+    (let ((titles (org-status--collect-task-titles)))
+      (test-assert (null titles)
+                   "Collect titles from nonexistent file: nil"))))
+
 ;;; Test runner
 
 (defun run-all-tests ()
@@ -436,6 +549,8 @@
   (test-edge-cases)
   (test-capture-cancellation-cleanup)
   (test-export-deduplication)
+  (test-task-name-parsing)
+  (test-task-name-collection)
 
   (message "\n========================================")
   (message "Test Results")

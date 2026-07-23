@@ -120,6 +120,7 @@
 
 (require 'org)
 (require 'org-capture)
+(require 'seq)
 
 ;;; Constants
 
@@ -223,6 +224,11 @@ instead of today. Should not be set directly by users.")
 (defvar org-status--created-new-structure nil
   "Flag indicating whether new heading structure was created during capture.
 Set to t when new headings are created, used to trigger display refresh.")
+
+(defvar org-status--last-read-project nil
+  "Stores the project name selected during capture.
+Used to pass the project from the first completion prompt to the
+second one within a single capture template expansion.")
 
 ;;; Week structure calculation
 
@@ -655,6 +661,69 @@ with content indented by two spaces."
              tasks
              "\n"))
 
+;;; Task name completion
+
+(defun org-status--parse-project-from-title (title)
+  "Extract the project name from TITLE.
+TITLE is expected to be in \"Project: Task\" format.
+Returns the project part, or TITLE itself if no \": \" separator is found."
+  (if (string-match ": " title)
+      (substring title 0 (match-beginning 0))
+    title))
+
+(defun org-status--parse-task-from-title (title)
+  "Extract the task description from TITLE.
+TITLE is expected to be in \"Project: Task\" format.
+Returns the task part, or empty string if no \": \" separator is found."
+  (if (string-match ": " title)
+      (substring title (match-end 0))
+    ""))
+
+(defun org-status--collect-task-titles ()
+  "Collect all unique task titles from the status file.
+Returns a deduplicated list of level-5 heading title strings."
+  (let ((titles '())
+        (task-re (concat "^"
+                         (regexp-quote (make-string org-status--task-level ?*))
+                         " \\(.+\\)$")))
+    (when (file-exists-p org-status-file)
+      (with-current-buffer (find-file-noselect org-status-file)
+        (save-excursion
+          (goto-char (point-min))
+          (while (re-search-forward task-re nil t)
+            (push (match-string-no-properties 1) titles)))))
+    (delete-dups (nreverse titles))))
+
+(defun org-status--collect-project-names ()
+  "Collect unique project names from the status file.
+Parses level-5 headings and extracts project names from
+\"Project: Task\" format."
+  (delete-dups (mapcar #'org-status--parse-project-from-title
+                       (org-status--collect-task-titles))))
+
+(defun org-status--collect-tasks-for-project (project)
+  "Collect unique task descriptions for PROJECT from the status file."
+  (delete-dups
+   (mapcar #'org-status--parse-task-from-title
+           (seq-filter (lambda (title)
+                         (string= (org-status--parse-project-from-title title)
+                                  project))
+                       (org-status--collect-task-titles)))))
+
+(defun org-status--read-project ()
+  "Prompt for a project name with completion from existing projects."
+  (let ((candidates (org-status--collect-project-names)))
+    (setq org-status--last-read-project
+          (completing-read "Project: " candidates nil nil))
+    org-status--last-read-project))
+
+(defun org-status--read-task ()
+  "Prompt for a task description with completion from existing tasks.
+Candidates are filtered to the project selected in `org-status--read-project'."
+  (let ((candidates (org-status--collect-tasks-for-project
+                     (or org-status--last-read-project ""))))
+    (completing-read "Task: " candidates nil nil)))
+
 ;;; Export functions
 
 (defun org-status--get-export-heading-title (subtreep)
@@ -741,7 +810,7 @@ This function is called automatically when opening the status report file."
 Uses explicit level 5 heading with proper indentation."
   (let ((stars (make-string org-status--task-level ?*))
         (indent (make-string (1+ org-status--task-level) ?\s)))
-    (format "%s %%^{Project}: %%^{Task}\n%s%%?" stars indent)))
+    (format "%s %%(org-status--read-project): %%(org-status--read-task)\n%s%%?" stars indent)))
 
 ;;;###autoload
 (defun org-status-report-setup ()
