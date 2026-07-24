@@ -528,7 +528,46 @@
   (let ((org-status-file "/tmp/org-status-nonexistent-test.org"))
     (let ((titles (org-status--collect-task-titles)))
       (test-assert (null titles)
-                   "Collect titles from nonexistent file: nil"))))
+                   "Collect titles from nonexistent file: nil")))
+
+  ;; Test lookback filtering
+  (let* ((temp-file (make-temp-file "org-status-lookback-" nil ".org"))
+         (org-status-file temp-file)
+         (today (format-time-string "%Y-%m-%d" (current-time)))
+         (old-date "2025-01-15"))
+    (unwind-protect
+        (progn
+          (with-temp-file temp-file
+            (insert "* 2025\n")
+            (insert "** Week 3 (2025-01-14 to 2025-01-20)\n")
+            (insert "*** First Half (Tue-Wed)\n")
+            (insert (format "**** %s Wednesday\n" old-date))
+            (insert "***** Old Project: Ancient task\n")
+            (insert "* 2026\n")
+            (insert "** Week 30 (2026-07-21 to 2026-07-27)\n")
+            (insert "*** First Half (Tue-Wed)\n")
+            (insert (format "**** %s Today\n" today))
+            (insert "***** New Project: Recent task\n"))
+
+          ;; With 30-day lookback: only recent task
+          (let ((org-status-completion-lookback-days 30))
+            (let ((titles (org-status--collect-task-titles)))
+              (test-equal (length titles) 1
+                          "Lookback 30 days: only 1 recent title")
+              (test-assert (member "New Project: Recent task" titles)
+                           "Lookback 30 days: includes recent task")
+              (test-assert (not (member "Old Project: Ancient task" titles))
+                           "Lookback 30 days: excludes old task")))
+
+          ;; With nil lookback: all tasks
+          (let ((org-status-completion-lookback-days nil))
+            (let ((titles (org-status--collect-task-titles)))
+              (test-equal (length titles) 2
+                          "Lookback nil: both titles included"))))
+
+      (let ((buf (get-file-buffer temp-file)))
+        (when buf (kill-buffer buf)))
+      (delete-file temp-file))))
 
 ;;; Test runner
 

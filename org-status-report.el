@@ -214,6 +214,14 @@ Default is \"S\" (capital S). Change if it conflicts with existing templates."
   :type 'string
   :group 'org-status)
 
+(defcustom org-status-completion-lookback-days 30
+  "Number of days to look back for completion candidates.
+Only tasks from date headings within this many days are offered
+as candidates during capture.  Set to nil to include all tasks."
+  :type '(choice (integer :tag "Days")
+                 (const :tag "No limit" nil))
+  :group 'org-status)
+
 ;;; Internal variables
 
 (defvar org-status--capture-date nil
@@ -680,18 +688,36 @@ Returns the task part, or empty string if no \": \" separator is found."
     ""))
 
 (defun org-status--collect-task-titles ()
-  "Collect all unique task titles from the status file.
+  "Collect unique task titles from the status file.
+Respects `org-status-completion-lookback-days' to limit scope.
 Returns a deduplicated list of level-5 heading title strings."
   (let ((titles '())
         (task-re (concat "^"
                          (regexp-quote (make-string org-status--task-level ?*))
-                         " \\(.+\\)$")))
+                         " \\(.+\\)$"))
+        (date-re (concat "^"
+                         (regexp-quote (make-string org-status--date-level ?*))
+                         " \\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\) "))
+        (cutoff (when org-status-completion-lookback-days
+                  (time-subtract (current-time)
+                                 (days-to-time org-status-completion-lookback-days))))
+        (current-date-ok t))
     (when (file-exists-p org-status-file)
       (with-current-buffer (find-file-noselect org-status-file)
         (save-excursion
           (goto-char (point-min))
-          (while (re-search-forward task-re nil t)
-            (push (match-string-no-properties 1) titles)))))
+          (while (not (eobp))
+            (cond
+             ((looking-at date-re)
+              (setq current-date-ok
+                    (or (null cutoff)
+                        (not (time-less-p
+                              (apply #'encode-time
+                                     (org-parse-time-string (match-string 1)))
+                              cutoff)))))
+             ((and current-date-ok (looking-at task-re))
+              (push (match-string-no-properties 1) titles)))
+            (forward-line 1)))))
     (delete-dups (nreverse titles))))
 
 (defun org-status--collect-project-names ()
