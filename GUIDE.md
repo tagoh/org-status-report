@@ -62,9 +62,11 @@ S          (select "Status Report (specific date)" - capital S)
 
 ### Step 2: Enter Task Details
 
-You'll be prompted for:
-1. **Project**: e.g., "Project A", "Project B", "Project C"
-2. **Task**: e.g., "Fix memory leak in cache handling"
+You'll be prompted with completion for:
+1. **Project**: Select from existing projects or type a new name
+2. **Task**: Select from existing tasks for that project or type a new description
+
+Completion candidates are drawn from the last 30 days of entries (configurable via `org-status-completion-lookback-days`). You can always type a new name — completion is not restrictive.
 
 ### Step 3: Add URL/Reference (Optional)
 
@@ -211,8 +213,8 @@ Includes all headings with dates and full structure - use only if you need the c
 ```
 1. Fix a bug in Project B
 2. C-c c → s
-3. Project: Project B
-4. Task: Fix crash on startup
+3. Project: Project B     (select from completion or type new)
+4. Task: Fix crash on startup   (select or type new)
 5. Add URL: https://github.com/example/project-b/issues/789
 6. C-c C-c to save
 ```
@@ -222,7 +224,7 @@ Includes all headings with dates and full structure - use only if you need the c
 ```
 1. Review code for Project A
 2. C-c c → s
-3. Project: Project A
+3. Project: Project A     (select from completion)
 4. Task: Code review for PR #123
 5. Add URL: https://github.com/example/project-a/pull/456
 6. C-c C-c to save
@@ -329,6 +331,10 @@ Add to your init file before calling `(org-status-report-setup)`:
 
 ;; Change file location
 (setq org-status-file "~/Documents/work-status.org")
+
+;; Change how far back completion looks for candidates (default: 30 days)
+(setq org-status-completion-lookback-days 60)  ; 60 days
+(setq org-status-completion-lookback-days nil) ; No limit (all entries)
 
 ;; Change capture keys if they conflict
 (setq org-status-capture-template-key "r")

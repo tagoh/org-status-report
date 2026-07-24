@@ -12,6 +12,7 @@ An Emacs package for automated weekly status report organization in org-mode.
 - ⚡ **Quick capture** - `C-c c s` for today, `S` for any date
 - 📤 **Easy export** - Export to plain text via `C-c C-e s s`
 - 🎨 **Fully customizable** - Week start day, labels, bullet styles
+- 🔄 **Smart completion** - Auto-completes project and task names from recent entries
 - 🔧 **use-package compatible** - Easy installation with modern Emacs configs
 - 📦 **Zero dependencies** - Only requires Emacs 27.1+ and org-mode 9.0+
 
@@ -153,7 +154,7 @@ Then restart Emacs or run `M-x org-status-report-setup`.
 
 After installation, restart Emacs and:
 
-1. **Capture work**: `C-c c` → `s` → Enter project and task
+1. **Capture work**: `C-c c` → `s` → Select/enter project and task (with completion)
 2. **View report**: Open `~/org/status.org`
 3. **Export**: Navigate to heading → `C-c @` → `C-c C-e` → `s s`
 
@@ -302,6 +303,7 @@ M-x customize-group RET org-status RET
 | `org-status-first-half-label` | `"First Half (Tue-Wed)"` | First half heading label |
 | `org-status-second-half-label` | `"Second Half (Thu-Fri-Mon)"` | Second half heading label |
 | `org-status-export-bullet-char` | `"*"` | Export bullet character |
+| `org-status-completion-lookback-days` | `30` | Days of history for completion candidates (nil=all) |
 | `org-status-capture-template-key` | `"s"` | Quick capture key |
 | `org-status-capture-dated-template-key` | `"S"` | Dated capture key |
 
@@ -381,6 +383,9 @@ The test suite covers:
 - Week offset calculation
 - Semantic correctness (first/second half ordering)
 - Edge cases (year boundaries, week wraparound)
+- Capture cancellation cleanup
+- Export deduplication
+- Task name parsing and completion candidate collection
 
 All tests must pass before committing changes.
 

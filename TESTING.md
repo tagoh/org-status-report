@@ -200,14 +200,18 @@ This ensures the bug doesn't reappear in future changes.
 
 ## Test Coverage
 
-Current test coverage (41 tests):
+Current test coverage (91 tests):
 
 - ✓ Default configuration values (5 tests)
 - ✓ Day-to-half assignment (7 tests)
 - ✓ Week structure calculation (11 tests)
 - ✓ Week offset calculation (7 tests)
 - ✓ Semantic correctness (7 tests)
-- ✓ Edge cases (4 tests)
+- ✓ Edge cases (3 tests)
+- ✓ Capture cancellation cleanup (9 tests)
+- ✓ Export deduplication (15 tests)
+- ✓ Task name parsing (8 tests)
+- ✓ Task name collection (19 tests)
 
 ## Debugging Failed Tests
 
