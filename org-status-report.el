@@ -290,6 +290,15 @@ HEADING is the text without stars, LEVEL is the number of stars."
           (regexp-quote heading)
           "$"))
 
+(defun org-status--heading-sort-key (heading level)
+  "Extract a sortable key from HEADING at LEVEL.
+For week headings, extracts the start date from the parenthesized range.
+For other levels, the heading text itself sorts correctly."
+  (if (and (= level org-status--week-level)
+           (string-match "(\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\)" heading))
+      (match-string 1 heading)
+    heading))
+
 (defun org-status--find-or-create-heading (heading level parent-end)
   "Find or create HEADING at LEVEL before PARENT-END.
 HEADING is the heading text (without stars).
@@ -297,16 +306,31 @@ LEVEL is the number of stars (1-5).
 PARENT-END is the point where the parent subtree ends.
 
 If found, moves point to the beginning of the heading line.
-If not found, creates the heading at PARENT-END.
+If not found, creates the heading in sorted order among siblings.
 Returns point at the beginning of the heading line."
-  (let ((heading-re (org-status--make-heading-regexp heading level)))
+  (let ((heading-re (org-status--make-heading-regexp heading level))
+        (search-start (point)))
     (if (re-search-forward heading-re parent-end t)
         (beginning-of-line)
-      (goto-char parent-end)
-      (insert (make-string level ?*) " " heading "\n")
-      (beginning-of-line)
-      ;; Mark that we created new structure
-      (setq org-status--created-new-structure t))
+      (let* ((new-key (org-status--heading-sort-key heading level))
+             (sibling-re (concat "^" (regexp-quote (make-string level ?*)) " "))
+             (insert-pos nil))
+        (save-excursion
+          (goto-char search-start)
+          (while (and (not insert-pos)
+                      (re-search-forward sibling-re parent-end t))
+            (beginning-of-line)
+            (let* ((sibling-text (buffer-substring-no-properties
+                                  (+ (point) level 1) (line-end-position)))
+                   (sibling-key (org-status--heading-sort-key sibling-text level)))
+              (when (string< new-key sibling-key)
+                (setq insert-pos (point)))
+              (unless insert-pos
+                (end-of-line)))))
+        (goto-char (or insert-pos parent-end))
+        (insert (make-string level ?*) " " heading "\n")
+        (forward-line -1)
+        (setq org-status--created-new-structure t)))
     (point)))
 
 (defun org-status--position-for-capture ()

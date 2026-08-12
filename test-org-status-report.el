@@ -480,44 +480,45 @@
             (insert "***** Project A: Add tests\n")
             (insert "***** Project C: Code review\n"))
 
-          ;; Test collect-task-titles
-          (let ((titles (org-status--collect-task-titles)))
-            (test-equal (length titles) 4
-                        "Collect titles: 4 unique titles (deduped)")
-            (test-assert (member "Project A: Fix memory leak" titles)
-                         "Collect titles: includes 'Project A: Fix memory leak'")
-            (test-assert (member "Project B: Write docs" titles)
-                         "Collect titles: includes 'Project B: Write docs'"))
+          ;; Test collect-task-titles (disable lookback so fixed dates don't age out)
+          (let ((org-status-completion-lookback-days nil))
+            (let ((titles (org-status--collect-task-titles)))
+              (test-equal (length titles) 4
+                          "Collect titles: 4 unique titles (deduped)")
+              (test-assert (member "Project A: Fix memory leak" titles)
+                           "Collect titles: includes 'Project A: Fix memory leak'")
+              (test-assert (member "Project B: Write docs" titles)
+                           "Collect titles: includes 'Project B: Write docs'"))
 
-          ;; Test collect-project-names
-          (let ((projects (org-status--collect-project-names)))
-            (test-equal (length projects) 3
-                        "Collect projects: 3 unique projects")
-            (test-assert (member "Project A" projects)
-                         "Collect projects: includes 'Project A'")
-            (test-assert (member "Project B" projects)
-                         "Collect projects: includes 'Project B'")
-            (test-assert (member "Project C" projects)
-                         "Collect projects: includes 'Project C'"))
+            ;; Test collect-project-names
+            (let ((projects (org-status--collect-project-names)))
+              (test-equal (length projects) 3
+                          "Collect projects: 3 unique projects")
+              (test-assert (member "Project A" projects)
+                           "Collect projects: includes 'Project A'")
+              (test-assert (member "Project B" projects)
+                           "Collect projects: includes 'Project B'")
+              (test-assert (member "Project C" projects)
+                           "Collect projects: includes 'Project C'"))
 
-          ;; Test collect-tasks-for-project
-          (let ((tasks-a (org-status--collect-tasks-for-project "Project A")))
-            (test-equal (length tasks-a) 2
-                        "Tasks for Project A: 2 unique tasks")
-            (test-assert (member "Fix memory leak" tasks-a)
-                         "Tasks for Project A: includes 'Fix memory leak'")
-            (test-assert (member "Add tests" tasks-a)
-                         "Tasks for Project A: includes 'Add tests'"))
+            ;; Test collect-tasks-for-project
+            (let ((tasks-a (org-status--collect-tasks-for-project "Project A")))
+              (test-equal (length tasks-a) 2
+                          "Tasks for Project A: 2 unique tasks")
+              (test-assert (member "Fix memory leak" tasks-a)
+                           "Tasks for Project A: includes 'Fix memory leak'")
+              (test-assert (member "Add tests" tasks-a)
+                           "Tasks for Project A: includes 'Add tests'"))
 
-          (let ((tasks-b (org-status--collect-tasks-for-project "Project B")))
-            (test-equal (length tasks-b) 1
-                        "Tasks for Project B: 1 task")
-            (test-string= (car tasks-b) "Write docs"
-                          "Tasks for Project B: is 'Write docs'"))
+            (let ((tasks-b (org-status--collect-tasks-for-project "Project B")))
+              (test-equal (length tasks-b) 1
+                          "Tasks for Project B: 1 task")
+              (test-string= (car tasks-b) "Write docs"
+                            "Tasks for Project B: is 'Write docs'"))
 
-          (let ((tasks-x (org-status--collect-tasks-for-project "Nonexistent")))
-            (test-assert (null tasks-x)
-                         "Tasks for nonexistent project: empty list")))
+            (let ((tasks-x (org-status--collect-tasks-for-project "Nonexistent")))
+              (test-assert (null tasks-x)
+                           "Tasks for nonexistent project: empty list"))))
 
       ;; Cleanup
       (let ((buf (get-file-buffer temp-file)))
@@ -557,7 +558,25 @@
               (test-assert (member "New Project: Recent task" titles)
                            "Lookback 30 days: includes recent task")
               (test-assert (not (member "Old Project: Ancient task" titles))
-                           "Lookback 30 days: excludes old task")))
+                           "Lookback 30 days: excludes old task"))
+
+            (let ((projects (org-status--collect-project-names)))
+              (test-equal (length projects) 1
+                          "Lookback 30 days: only 1 recent project")
+              (test-assert (member "New Project" projects)
+                           "Lookback 30 days: includes recent project")
+              (test-assert (not (member "Old Project" projects))
+                           "Lookback 30 days: excludes old project"))
+
+            (let ((tasks (org-status--collect-tasks-for-project "New Project")))
+              (test-equal (length tasks) 1
+                          "Lookback 30 days: 1 task for recent project")
+              (test-string= (car tasks) "Recent task"
+                            "Lookback 30 days: correct task for recent project"))
+
+            (let ((tasks (org-status--collect-tasks-for-project "Old Project")))
+              (test-assert (null tasks)
+                           "Lookback 30 days: no tasks for old project")))
 
           ;; With nil lookback: all tasks
           (let ((org-status-completion-lookback-days nil))
@@ -568,6 +587,136 @@
       (let ((buf (get-file-buffer temp-file)))
         (when buf (kill-buffer buf)))
       (delete-file temp-file))))
+
+;;; Test: Sorted heading insertion
+
+(defun test-sorted-heading-insertion ()
+  "Test that new headings are inserted in sorted order among siblings."
+  (message "\n=== Testing Sorted Heading Insertion ===")
+
+  ;; Test: date heading inserted before later sibling
+  (with-temp-buffer
+    (org-mode)
+    (insert "* 2026\n")
+    (insert "** Week 33 (2026-08-11 to 2026-08-17)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-08-12 Wednesday\n")
+    (insert "***** Project: task\n")
+
+    (goto-char (point-min))
+    (re-search-forward "^\\*\\*\\* First Half")
+    (beginning-of-line)
+    (forward-line 1)
+    (let ((parent-end (save-excursion
+                        (goto-char (point-min))
+                        (re-search-forward "^\\*\\*\\* First Half")
+                        (beginning-of-line)
+                        (org-end-of-subtree t t)
+                        (point))))
+      (org-status--find-or-create-heading "2026-08-11 Tuesday" 4 parent-end))
+
+    (goto-char (point-min))
+    (let ((tue-pos (progn (re-search-forward "2026-08-11 Tuesday") (point)))
+          (wed-pos (progn (re-search-forward "2026-08-12 Wednesday") (point))))
+      (test-assert (< tue-pos wed-pos)
+                   "Earlier date heading inserted before later date")))
+
+  ;; Test: date heading appended after earlier sibling
+  (with-temp-buffer
+    (org-mode)
+    (insert "* 2026\n")
+    (insert "** Week 33 (2026-08-11 to 2026-08-17)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-08-11 Tuesday\n")
+    (insert "***** Project: task\n")
+
+    (goto-char (point-min))
+    (re-search-forward "^\\*\\*\\* First Half")
+    (beginning-of-line)
+    (forward-line 1)
+    (let ((parent-end (save-excursion
+                        (goto-char (point-min))
+                        (re-search-forward "^\\*\\*\\* First Half")
+                        (beginning-of-line)
+                        (org-end-of-subtree t t)
+                        (point))))
+      (org-status--find-or-create-heading "2026-08-12 Wednesday" 4 parent-end))
+
+    (goto-char (point-min))
+    (let ((tue-pos (progn (re-search-forward "2026-08-11 Tuesday") (point)))
+          (wed-pos (progn (re-search-forward "2026-08-12 Wednesday") (point))))
+      (test-assert (< tue-pos wed-pos)
+                   "Later date heading appended after earlier date")))
+
+  ;; Test: week heading inserted in sorted order
+  (with-temp-buffer
+    (org-mode)
+    (insert "* 2026\n")
+    (insert "** Week 33 (2026-08-11 to 2026-08-17)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-08-11 Tuesday\n")
+
+    (goto-char (point-min))
+    (re-search-forward "^\\* 2026")
+    (beginning-of-line)
+    (forward-line 1)
+    (let ((parent-end (save-excursion
+                        (goto-char (point-min))
+                        (re-search-forward "^\\* 2026")
+                        (beginning-of-line)
+                        (org-end-of-subtree t t)
+                        (point))))
+      (org-status--find-or-create-heading
+       "Week 32 (2026-08-04 to 2026-08-10)" 2 parent-end))
+
+    (goto-char (point-min))
+    (let ((w32-pos (progn (re-search-forward "Week 32") (point)))
+          (w33-pos (progn (re-search-forward "Week 33") (point))))
+      (test-assert (< w32-pos w33-pos)
+                   "Earlier week heading inserted before later week")))
+
+  ;; Test: year heading inserted in sorted order
+  (with-temp-buffer
+    (org-mode)
+    (insert "* 2026\n")
+    (insert "** Week 33 (2026-08-11 to 2026-08-17)\n")
+
+    (goto-char (point-min))
+    (org-status--find-or-create-heading "2025" 1 (point-max))
+
+    (goto-char (point-min))
+    (let ((y25-pos (progn (re-search-forward "^\\* 2025") (point)))
+          (y26-pos (progn (re-search-forward "^\\* 2026") (point))))
+      (test-assert (< y25-pos y26-pos)
+                   "Earlier year heading inserted before later year")))
+
+  ;; Test: heading inserted between two existing siblings
+  (with-temp-buffer
+    (org-mode)
+    (insert "* 2026\n")
+    (insert "** Week 33 (2026-08-11 to 2026-08-17)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-08-11 Tuesday\n")
+    (insert "**** 2026-08-13 Thursday\n")
+
+    (goto-char (point-min))
+    (re-search-forward "^\\*\\*\\* First Half")
+    (beginning-of-line)
+    (forward-line 1)
+    (let ((parent-end (save-excursion
+                        (goto-char (point-min))
+                        (re-search-forward "^\\*\\*\\* First Half")
+                        (beginning-of-line)
+                        (org-end-of-subtree t t)
+                        (point))))
+      (org-status--find-or-create-heading "2026-08-12 Wednesday" 4 parent-end))
+
+    (goto-char (point-min))
+    (let ((tue-pos (progn (re-search-forward "2026-08-11 Tuesday") (point)))
+          (wed-pos (progn (re-search-forward "2026-08-12 Wednesday") (point)))
+          (thu-pos (progn (re-search-forward "2026-08-13 Thursday") (point))))
+      (test-assert (and (< tue-pos wed-pos) (< wed-pos thu-pos))
+                   "Date heading inserted in correct position between siblings"))))
 
 ;;; Test runner
 
@@ -590,6 +739,7 @@
   (test-export-deduplication)
   (test-task-name-parsing)
   (test-task-name-collection)
+  (test-sorted-heading-insertion)
 
   (message "\n========================================")
   (message "Test Results")
