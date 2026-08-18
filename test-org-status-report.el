@@ -417,6 +417,63 @@
       (test-string= (car (cadr tasks)) "Project B: Write docs"
                     "Org buffer: Project B preserved"))))
 
+;;; Test: Weekday on export
+
+(defun test-export-weekday ()
+  "Test that tagged tasks get the enclosing weekday appended on export."
+  (message "\n=== Testing Weekday On Export ===")
+
+  ;; Default locale is "C", giving English weekday names.
+  (let ((org-status-export-weekday-locale "C"))
+
+  ;; Weekday derivation from a date string
+  (test-string= (org-status--weekday-of-date "2026-07-21") "Tuesday"
+                "Weekday of 2026-07-21 is Tuesday (C locale)")
+  (test-string= (org-status--weekday-of-date "2026-07-22") "Wednesday"
+                "Weekday of 2026-07-22 is Wednesday (C locale)")
+
+  ;; Append helper honors the format string
+  (let ((org-status-export-weekday-format " (%s)"))
+    (test-string= (org-status--append-weekday "Public holiday" "Tuesday")
+                  "Public holiday (Tuesday)"
+                  "Append: default format wraps weekday in parens"))
+  (let ((org-status-export-weekday-format " - %s"))
+    (test-string= (org-status--append-weekday "Public holiday" "Tuesday")
+                  "Public holiday - Tuesday"
+                  "Append: custom format respected"))
+  (test-string= (org-status--append-weekday "Public holiday" nil)
+                "Public holiday"
+                "Append: nil weekday leaves title unchanged")
+  (let ((org-status-export-weekday-format ""))
+    (test-string= (org-status--append-weekday "Public holiday" "Tuesday")
+                  "Public holiday"
+                  "Append: empty format disables weekday"))
+
+  ;; Full extraction: only the tagged task gets the weekday
+  (with-temp-buffer
+    (org-mode)
+    (insert "* 2026\n")
+    (insert "** Week 30 (2026-07-21 to 2026-07-27)\n")
+    (insert "*** First Half (Tue-Wed)\n")
+    (insert "**** 2026-07-21 Tuesday\n")
+    (insert "***** Public holiday                                          :dow:\n")
+    (insert "***** Project A: Fix memory leak\n")
+    (let ((org-status-export-weekday-tag "dow")
+          (org-status-export-weekday-format " (%s)"))
+      (let ((tasks (org-status--extract-tasks nil)))
+        (test-equal (length tasks) 2
+                    "Weekday export: two tasks extracted")
+        (test-string= (car (nth 0 tasks)) "Public holiday (Tuesday)"
+                      "Weekday export: tagged task gets weekday")
+        (test-string= (car (nth 1 tasks)) "Project A: Fix memory leak"
+                      "Weekday export: untagged task unchanged")))
+
+    ;; Disabling the tag suppresses the weekday (tag still stripped from title)
+    (let ((org-status-export-weekday-tag nil))
+      (let ((tasks (org-status--extract-tasks nil)))
+        (test-string= (car (nth 0 tasks)) "Public holiday"
+                      "Weekday export: disabled tag leaves title bare"))))))
+
 ;;; Test: Task name parsing
 
 (defun test-task-name-parsing ()
@@ -737,6 +794,7 @@
   (test-edge-cases)
   (test-capture-cancellation-cleanup)
   (test-export-deduplication)
+  (test-export-weekday)
   (test-task-name-parsing)
   (test-task-name-collection)
   (test-sorted-heading-insertion)

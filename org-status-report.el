@@ -37,6 +37,7 @@
 ;; - Split weeks into configurable halves (e.g., Tue-Wed, Thu-Fri-Mon)
 ;; - Quick capture: C-c c s (today) or S (specific date)
 ;; - Export to plain text bullets via C-c C-e C-s s s
+;; - Optional per-task weekday on export via the :dow: tag
 ;; - Fully customizable: week structure, labels, bullet style
 ;; - Zero dependencies beyond Emacs and org-mode
 
@@ -115,6 +116,11 @@
 ;;   *** Second Half (Thu-Fri-Mon)
 ;;   **** 2026-07-10 Friday
 ;;   ***** Project B: Update configuration files
+;;
+;; Export drops the date and weekday.  To keep the weekday for a
+;; day-specific entry, tag the task with `org-status-export-weekday-tag'
+;; (default ":dow:"); the export then appends the weekday of its date
+;; heading, e.g. "***** Public holiday :dow:" -> "* Public holiday (Tuesday)".
 
 ;;; Code:
 
@@ -200,6 +206,39 @@ Common choices:
   \"+\" - plus signs
   \"•\" - Unicode bullet"
   :type 'string
+  :group 'org-status)
+
+(defcustom org-status-export-weekday-tag "dow"
+  "Org tag marking tasks whose weekday should be shown on export.
+Export normally drops the date and weekday, flattening tasks into a
+plain bullet list.  For entries where the day itself is the point (for
+example \"Public holiday\"), tag the task heading with this tag and the
+export bullet gets the weekday of the enclosing date heading appended,
+formatted with `org-status-export-weekday-format'.
+Set to nil to disable the feature entirely."
+  :type '(choice (string :tag "Tag name")
+                 (const :tag "Disabled" nil))
+  :group 'org-status)
+
+(defcustom org-status-export-weekday-format " (%s)"
+  "Format string for the weekday appended to tagged tasks on export.
+The single %s is replaced with the weekday name, for example
+\"Tuesday\".  Examples: \" (%s)\" -> \"Public holiday (Tuesday)\",
+\" - %s\" -> \"Public holiday - Tuesday\".  An empty string disables the
+appended weekday.  See `org-status-export-weekday-tag'."
+  :type 'string
+  :group 'org-status)
+
+(defcustom org-status-export-weekday-locale "C"
+  "Locale used to render the weekday appended to tagged tasks on export.
+Bound to `system-time-locale' while formatting the weekday name (see
+`org-status-export-weekday-tag').  \"C\" yields English names such as
+\"Tuesday\".  Set to nil to follow the system locale (matching the
+weekday written in the date heading), or to a locale string such as
+\"ja_JP.UTF-8\" for another language."
+  :type '(choice (const :tag "English (C locale)" "C")
+                 (const :tag "System locale" nil)
+                 (string :tag "Locale name"))
   :group 'org-status)
 
 (defcustom org-status-capture-template-key "s"
@@ -628,33 +667,75 @@ When called interactively:
 
 ;;; Task extraction and formatting
 
+(defun org-status--weekday-of-date (date)
+  "Return the weekday name for DATE, a \"YYYY-MM-DD\" string.
+For example, \"2026-07-21\" returns \"Tuesday\".  Returns nil if DATE
+cannot be parsed."
+  (ignore-errors
+    (let ((system-time-locale org-status-export-weekday-locale))
+      (format-time-string "%A"
+                          (apply #'encode-time (org-parse-time-string date))))))
+
+(defun org-status--append-weekday (title weekday)
+  "Append WEEKDAY to TITLE using `org-status-export-weekday-format'.
+Returns TITLE unchanged when WEEKDAY is nil or the format string is
+empty."
+  (if (and weekday
+           (stringp org-status-export-weekday-format)
+           (not (string-empty-p org-status-export-weekday-format)))
+      (concat title (format org-status-export-weekday-format weekday))
+    title))
+
 (defun org-status--extract-tasks (subtreep)
   "Extract tasks (level 5 headings) from current buffer or subtree.
 If SUBTREEP is non-nil, only extract from current subtree.
 Returns an alist of (task-title . task-content) where:
-  task-title is the heading text
+  task-title is the heading text without tags; if the heading carries
+    `org-status-export-weekday-tag', the weekday of the enclosing date
+    heading is appended (see `org-status--append-weekday')
   task-content is any text/links under the heading (trimmed)"
   (let ((tasks '())
+        (date-re (concat "^"
+                         (regexp-quote (make-string org-status--date-level ?*))
+                         " \\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\)"))
         (task-re (concat "^"
                          (regexp-quote (make-string org-status--task-level ?*))
-                         " \\(.+\\)$"))
-        (heading-re (format "^\\*\\{1,%d\\} " org-status--task-level)))
+                         " "))
+        (heading-re (format "^\\*\\{1,%d\\} " org-status--task-level))
+        (scan-re (format "^\\*\\{%d,%d\\} "
+                         org-status--date-level org-status--task-level))
+        (current-weekday nil))
     (save-excursion
       (save-restriction
         (when subtreep
           (org-narrow-to-subtree))
         (goto-char (point-min))
-        (while (re-search-forward task-re nil t)
-          (let* ((task-title (match-string 1))
-                 (task-start (point))
-                 (task-end (save-excursion
-                             (if (re-search-forward heading-re nil t)
-                                 (match-beginning 0)
-                               (point-max))))
-                 (task-content (string-trim
-                                (buffer-substring-no-properties task-start task-end))))
-            (push (cons task-title task-content) tasks)))
-        (widen)))
+        (while (re-search-forward scan-re nil t)
+          (beginning-of-line)
+          (cond
+           ;; Date heading: remember its weekday for the tasks that follow.
+           ((looking-at date-re)
+            (setq current-weekday (org-status--weekday-of-date (match-string 1)))
+            (end-of-line))
+           ;; Task heading: collect its title and content.
+           ((looking-at task-re)
+            (let* ((tags (org-get-tags nil t))
+                   (title (org-get-heading t t t t))
+                   (title (if (and org-status-export-weekday-tag
+                                   (member org-status-export-weekday-tag tags))
+                              (org-status--append-weekday title current-weekday)
+                            title))
+                   (task-start (line-end-position))
+                   (task-end (save-excursion
+                               (goto-char task-start)
+                               (if (re-search-forward heading-re nil t)
+                                   (match-beginning 0)
+                                 (point-max))))
+                   (task-content (string-trim
+                                  (buffer-substring-no-properties task-start task-end))))
+              (push (cons title task-content) tasks)
+              (end-of-line)))
+           (t (end-of-line))))))
     (nreverse tasks)))
 
 (defun org-status--deduplicate-tasks (tasks)

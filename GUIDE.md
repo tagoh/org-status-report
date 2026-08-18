@@ -176,6 +176,41 @@ Same format as above, but saves to a file you specify.
 **`t A` - ASCII export to buffer (Traditional)**  
 Includes all headings with dates and full structure - use only if you need the complete hierarchy.
 
+### Showing the Weekday for a Task
+
+The Status Report export drops dates and weekdays, which is usually what you
+want. But for entries where the *day* is the whole point - a public holiday,
+a day off - that context gets lost.
+
+Instead of typing the weekday into the task (which just duplicates the date
+heading), **tag the task** and let the export fill in the weekday:
+
+```org
+**** 2026-07-21 Tuesday
+***** Public holiday                                          :dow:
+***** Project A: Fix memory leak
+```
+
+Exports as:
+
+```
+* Public holiday (Tuesday)
+* Project A: Fix memory leak
+```
+
+To add the tag, put the cursor on the task heading and press `C-c C-c`, then
+type `dow` (tab-completes). Only tagged tasks get the weekday; everything
+else exports as before.
+
+You can customize this:
+- `org-status-export-weekday-tag` - the tag to look for (default `"dow"`;
+  set to `nil` to turn the feature off).
+- `org-status-export-weekday-format` - how the weekday is rendered
+  (default `" (%s)"`; e.g. `" - %s"` gives `Public holiday - Tuesday`).
+- `org-status-export-weekday-locale` - language of the weekday name
+  (default `"C"` for English; set to `nil` to follow your system locale,
+  e.g. `火曜日`, or to a locale string like `"ja_JP.UTF-8"`).
+
 ## Org-Mode Navigation Shortcuts
 
 | Keybinding | Action |

@@ -11,6 +11,7 @@ An Emacs package for automated weekly status report organization in org-mode.
 - 🔀 **Configurable week splits** - First half (Tue-Wed) and Second half (Thu-Fri-Mon)
 - ⚡ **Quick capture** - `C-c c s` for today, `S` for any date
 - 📤 **Easy export** - Export to plain text via `C-c C-e s s`
+- 🗓️ **Weekday on demand** - Tag a task `:dow:` to keep its weekday on export
 - 🎨 **Fully customizable** - Week start day, labels, bullet styles
 - 🔄 **Smart completion** - Auto-completes project and task names from recent entries
 - 🔧 **use-package compatible** - Easy installation with modern Emacs configs
@@ -285,6 +286,32 @@ s f         → Export to file
             → Enter filename
 ```
 
+**Showing the weekday for day-specific entries:**
+
+Export flattens tasks into a plain list and drops the date, so entries
+where the day itself is the point (a public holiday, a day off) lose that
+context. Tag such a task with `:dow:` and the export appends the weekday of
+its date heading — no need to type the weekday into the capture (that would
+just duplicate the date heading):
+
+```org
+**** 2026-07-21 Tuesday
+***** Public holiday                                          :dow:
+***** Project A: Fix memory leak
+```
+
+exports as:
+
+```
+* Public holiday (Tuesday)
+* Project A: Fix memory leak
+```
+
+Add the tag with `C-c C-c` on the heading (type `dow`), or just type
+`:dow:` at the end of the line. Customize `org-status-export-weekday-tag`
+to change the tag and `org-status-export-weekday-format` to change how the
+weekday is rendered (e.g. `" - %s"` → `Public holiday - Tuesday`).
+
 ## Customization
 
 Access all settings:
@@ -303,6 +330,9 @@ M-x customize-group RET org-status RET
 | `org-status-first-half-label` | `"First Half (Tue-Wed)"` | First half heading label |
 | `org-status-second-half-label` | `"Second Half (Thu-Fri-Mon)"` | Second half heading label |
 | `org-status-export-bullet-char` | `"*"` | Export bullet character |
+| `org-status-export-weekday-tag` | `"dow"` | Tag marking tasks that show their weekday on export (nil=disable) |
+| `org-status-export-weekday-format` | `" (%s)"` | Format for the appended weekday (`%s` = weekday name) |
+| `org-status-export-weekday-locale` | `"C"` | Locale for the weekday name (`"C"`=English, nil=system locale) |
 | `org-status-completion-lookback-days` | `30` | Days of history for completion candidates (nil=all) |
 | `org-status-capture-template-key` | `"s"` | Quick capture key |
 | `org-status-capture-dated-template-key` | `"S"` | Dated capture key |
@@ -385,6 +415,7 @@ The test suite covers:
 - Edge cases (year boundaries, week wraparound)
 - Capture cancellation cleanup
 - Export deduplication
+- Weekday on export (`:dow:` tag substitution)
 - Task name parsing and completion candidate collection
 
 All tests must pass before committing changes.

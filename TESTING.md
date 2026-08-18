@@ -200,7 +200,7 @@ This ensures the bug doesn't reappear in future changes.
 
 ## Test Coverage
 
-Current test coverage (91 tests):
+Current test coverage (112 tests):
 
 - ✓ Default configuration values (5 tests)
 - ✓ Day-to-half assignment (7 tests)
@@ -210,6 +210,7 @@ Current test coverage (91 tests):
 - ✓ Edge cases (3 tests)
 - ✓ Capture cancellation cleanup (9 tests)
 - ✓ Export deduplication (15 tests)
+- ✓ Weekday on export (10 tests)
 - ✓ Task name parsing (8 tests)
 - ✓ Task name collection (19 tests)
 
